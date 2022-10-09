@@ -16,6 +16,13 @@ from vpt.run_agent import load_agent
 
 coloredlogs.install(logging.DEBUG)
 
+MODEL_FILE = "foundation-model-1x.model"
+# MODEL_FILE = "foundation-model-2x.model"
+# MODEL_FILE = "foundation-model-3x.model"
+
+WEIGHTS_FILE = "foundation-model-1x.weights"
+# WEIGHTS_FILE = "rl-from-early-game-2x.weights"
+
 MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
 DATASET_PATHS = [
     os.path.join(MINERL_DATA_ROOT, "MineRLBasaltBuildVillageHouse-v0"),
@@ -25,8 +32,8 @@ DATASET_PATHS = [
 ]
 
 VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
-PRETRAINED_AGENT_MODEL_FILE = os.path.join(VPT_MODELS_ROOT, "foundation-model-2x.model")
-PRETRAINED_AGENT_WEIGHTS_FILE = os.path.join(VPT_MODELS_ROOT, "rl-from-early-game-2x.weights")
+PRETRAINED_AGENT_MODEL_FILE = os.path.join(VPT_MODELS_ROOT, MODEL_FILE)
+PRETRAINED_AGENT_WEIGHTS_FILE = os.path.join(VPT_MODELS_ROOT, WEIGHTS_FILE)
 
 
 NUM_WALKERS = 8
@@ -36,6 +43,8 @@ UNROLL_STEPS = 8
 
 
 def get_agent():
+    print("Loading model", PRETRAINED_AGENT_MODEL_FILE)
+    print("with weights", PRETRAINED_AGENT_WEIGHTS_FILE)
     return load_agent(PRETRAINED_AGENT_MODEL_FILE, PRETRAINED_AGENT_WEIGHTS_FILE)
 
 
