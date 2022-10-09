@@ -41,15 +41,16 @@ class FGZTrainer:
         return observations, actions
 
     def train_trajectory(self):
-        # 2 trajectories are generated. 1 is from the expert dataset, where the entire trajectory is loaded
-        # as a contiguous piece. 
-
-        # sample a FULL trajectory from the expert dataset.
-
-        # the trajectory is fed in 1 observation at a time to the agent. the agent then predicts an action.
-        # this action prediction can more or less be discarded (or it doesn't need to be calculated at all)
-        # what we really care about is gathering the embedding that goes into the policy head and setting that as
-        # the dynamics function's state.
+        """
+        2 trajectories are gathered:
+            1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
+            2.  Each state in the expert trajectory is embedded using a pretrained agent model. FMC runs a simulation for
+                every embedded state from the expert trajectory/agent while trying to maximize a specific discriminator
+                logit (to confuse the discriminator into believing it's actions came from the expert dataset).
+        
+        Then, the discriminator is trained to recognize the differences between true expert trajectories and trajectories
+        resulting from exploiting the discriminator's confusion.
+        """
 
         unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         for expert_sequence in unroller:

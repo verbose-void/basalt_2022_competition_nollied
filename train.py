@@ -33,6 +33,7 @@ def get_agent():
 
 
 def get_dynamics_function():
+    # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
         discriminator_classes=DISCRIMINATOR_CLASSES,
     )
