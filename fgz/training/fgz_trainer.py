@@ -2,6 +2,7 @@ import minerl
 import gym
 import torch
 import torch.nn.functional as F
+import wandb
 
 from tqdm import tqdm
 
@@ -28,6 +29,7 @@ class FGZTrainer:
         data_handler: DataHandler,
         dynamics_function_optimizer: torch.optim.Optimizer,
         unroll_steps: int=8,
+        use_wandb: bool = False,
     ):
         self.minerl_env = minerl_env
         self.agent = agent
@@ -40,6 +42,7 @@ class FGZTrainer:
         # )
         self.fmc = fmc
         self.unroll_steps = unroll_steps
+        self.use_wandb = use_wandb
 
         self.dynamics_function_optimizer = dynamics_function_optimizer
 
@@ -83,13 +86,10 @@ class FGZTrainer:
         # self.fmc_steps_taken = len(fmc_confusions)
         # return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
 
-        print(discrim_logits.shape)
-        print(fmc_discriminator_targets.shape)
-
         return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
 
     def get_expert_loss(self, full_window):
-        frame, root_embedding, action = full_window[0]
+        _, root_embedding, _ = full_window[0]
         dynamics: DynamicsFunction = self.fmc.vec_env.dynamics_function
 
         # each logit corresponds to one of the tasks. we can consider this to be our label
@@ -104,22 +104,10 @@ class FGZTrainer:
         loss = 0.0
 
         # make sure we unroll to the length of FMC
-        for _ in range(self.fmc_steps_taken):
+        for i in range(self.fmc_steps_taken):
+            _, _, action = full_window[i]
             embedding, logits = dynamics.forward_action(embedding, action)
-
             loss += F.cross_entropy(logits, target_logit)
-
-        # for frame, state_embedding, action in full_window:
-            # NOTE: FMC may decide not to go the full depth, meaning it could return observations/actions that are
-            # not as long as the original window. for that case, we will shorten the window here.
-            # steps = len(fmc_obs)
-            # window = full_window[:steps]
-            # assert len(window) == len(fmc_obs)
-
-            # NOTE: the first value in the confusions list will be 0 or None, so we should ignore it.
-            # this is because the first value corresponds to the root of the search tree (which doesn't
-            # have a reward). 
-            # break
         return loss / self.fmc_steps_taken
 
     def train_trajectory(self, use_tqdm: bool=False):
@@ -134,24 +122,30 @@ class FGZTrainer:
         resulting from exploiting the discriminator's confusion.
         """
 
-        self.dynamics_function_optimizer.zero_grad()
 
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
         
         it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm)
         for full_window in it:
+            self.dynamics_function_optimizer.zero_grad()
             
             fmc_loss = self.get_fmc_loss(full_window)
-
             expert_loss = self.get_expert_loss(full_window)
+            loss = (fmc_loss + expert_loss) / 2
 
-            print(fmc_loss, expert_loss)
-            loss = fmc_loss + expert_loss
+            # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
+
+            if self.use_wandb and wandb.run:
+                wandb.log({
+                    "train/fmc_loss": fmc_loss,
+                    "train/expert_loss": expert_loss,
+                    "train/loss": loss,
+                    "train/fmc_steps_taken": self.fmc_steps_taken,
+                })
 
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
             self.dynamics_function_optimizer.step()
-            break
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
