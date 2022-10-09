@@ -5,6 +5,7 @@ from typing import Dict, List
 
 from vpt.lib.actions import Buttons
 import torch
+import torch.nn.functional as F
 
 from fractal_zero.vectorized_environment import VectorizedEnvironment
 
@@ -101,6 +102,7 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         action_space: gym.Env, 
         dynamics_function: DynamicsFunction, 
         n: int=1,
+        apply_softmax_before_reward: bool = True,
     ):
         self.action_space = action_space
         self.dynamics_function = dynamics_function
@@ -108,6 +110,8 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
         # NOTE: this should be updated with each trajectory in the training script.
         self.target_discriminator_logit = None
+
+        self.apply_softmax_before_reward = apply_softmax_before_reward
 
         self.states = dynamics_function.dummy_initial_state()
 
@@ -125,11 +129,21 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
         button_vectors, camera_vectors = vectorize_minerl_actions(actions)
         new_states, discrim_logits = self.dynamics_function.forward(self.states, button_vectors, camera_vectors)
-        target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
 
         # don't forward frozen states, frozen state's confusions are 0.
         self.states[freeze_mask != 1] = new_states[freeze_mask != 1]
-        rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
+
+        # applying a softmax before calculating the confusion reward means all of the
+        # other logits are beingn minimized, including the FMC logit. this is ideal,
+        # because it means the actions preferred by FMC simultaneously maximize the target logit
+        # and minimize all of the others.
+        if self.apply_softmax_before_reward:
+            soft_logits = F.softmax(discrim_logits, dim=-1)
+            soft_confusions = 1-soft_logits[:, self.target_discriminator_logit]
+            rewards = torch.where(freeze_mask, 0, soft_confusions)
+        else:
+            target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
+            rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
 
         obs = self.states
         dones = torch.zeros(self.n).bool()
