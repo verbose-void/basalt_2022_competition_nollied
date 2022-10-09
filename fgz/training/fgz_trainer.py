@@ -9,8 +9,14 @@ from fractal_zero.search.fmc import FMC
 from fractal_zero.data.tree_sampler import TreeSampler
 
 from vpt.agent import MineRLAgent
+from fgz.architecture.dynamics_function import DynamicsFunction
 
 from fgz.data_utils.data_handler import DataHandler
+
+
+# TODO: move to train script
+FMC_LOGIT = 4 
+
 
 class FGZTrainer:
 
@@ -37,29 +43,73 @@ class FGZTrainer:
 
         self.dynamics_function_optimizer = dynamics_function_optimizer
 
+    @property
+    def num_tasks(self):
+        return self.data_handler.num_tasks
+
     def get_fmc_trajectory(self, root_embedding):
+        # ensure FMC is exploiting the correct logit. this basically means FMC will try to
+        # find actions that maximize the discriminator's confusion for this specifc task.
+        # the hope is that FMC will choose actions that make the discriminator beieve they are
+        # from the expert performing that task.
+        self.fmc.vec_env.set_target_logit(self.current_trajectory_window.task_id)
+
         self.fmc.vec_env.set_all_states(root_embedding.squeeze())
         self.fmc.reset()
 
         self.fmc.simulate(self.unroll_steps)
 
         self.tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
-        observations, actions, _, confusions = self.tree_sampler.get_batch()
-        assert len(observations) == len(actions) == len(confusions)
-        return observations, actions, confusions
+        observations, actions, _, confusions, infos = self.tree_sampler.get_batch()
+        assert len(observations) == len(actions) == len(confusions) == len(infos)
+        return observations, actions, infos # confusions
 
-    def get_fmc_loss(self, fmc_root_embedding):
-        fmc_obs, fmc_acts, fmc_confusions = self.get_fmc_trajectory(fmc_root_embedding)
+    def get_fmc_loss(self, full_window):
+        fmc_root_embedding = full_window[0][1]
+        fmc_obs, fmc_acts, discrim_logits = self.get_fmc_trajectory(fmc_root_embedding)
 
-        fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
-        fmc_confusions = torch.cat(fmc_confusions)
-        fmc_discriminator_targets = torch.zeros_like(fmc_confusions)
+        discrim_logits = discrim_logits[1:]
+        self.fmc_steps_taken = len(discrim_logits)
 
-        return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
+        # TODO: explain
+        discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
+        discrim_logits = torch.cat(discrim_logits)
+        fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * FMC_LOGIT
 
-    def get_expert_loss(self, window):
+        # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
+        # fmc_confusions = torch.cat(fmc_confusions)
+        # fmc_discriminator_targets = torch.zeros_like(fmc_confusions)
+
+        # self.fmc_steps_taken = len(fmc_confusions)
+        # return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
+
+        print(discrim_logits.shape)
+        print(fmc_discriminator_targets.shape)
+
+        return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
+
+    def get_expert_loss(self, full_window):
+        frame, root_embedding, action = full_window[0]
+        dynamics: DynamicsFunction = self.fmc.vec_env.dynamics_function
+
+        # each logit corresponds to one of the tasks. we can consider this to be our label
+        target_logit = torch.tensor([self.current_trajectory_window.task_id], dtype=torch.long)
+
+        # one-hot encode the task classificaiton target
+        # classification_target = torch.zeros(self.num_tasks, dtype=torch.bool)
+        # classification_target[target_logit] = 1
+
+        # unroll expert
+        embedding = root_embedding.squeeze(0)
         loss = 0.0
-        for frame, state_embedding, action in window:
+
+        # make sure we unroll to the length of FMC
+        for _ in range(self.fmc_steps_taken):
+            embedding, logits = dynamics.forward_action(embedding, action)
+
+            loss += F.cross_entropy(logits, target_logit)
+
+        # for frame, state_embedding, action in full_window:
             # NOTE: FMC may decide not to go the full depth, meaning it could return observations/actions that are
             # not as long as the original window. for that case, we will shorten the window here.
             # steps = len(fmc_obs)
@@ -69,8 +119,8 @@ class FGZTrainer:
             # NOTE: the first value in the confusions list will be 0 or None, so we should ignore it.
             # this is because the first value corresponds to the root of the search tree (which doesn't
             # have a reward). 
-            break
-        return loss
+            # break
+        return loss / self.fmc_steps_taken
 
     def train_trajectory(self, use_tqdm: bool=False):
         """
@@ -90,8 +140,8 @@ class FGZTrainer:
         
         it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm)
         for full_window in it:
-            first_embedding = full_window[0][1]
-            fmc_loss = self.get_fmc_loss(first_embedding)
+            
+            fmc_loss = self.get_fmc_loss(full_window)
 
             expert_loss = self.get_expert_loss(full_window)
 

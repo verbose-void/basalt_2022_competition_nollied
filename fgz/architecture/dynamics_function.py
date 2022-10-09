@@ -75,7 +75,7 @@ class DynamicsFunction(torch.nn.Module):
         return torch.zeros(self.state_embedding_size, dtype=float, requires_grad=True)
 
     def forward(self, state_embedding, buttons_vector, camera_vector):
-        assert state_embedding.dim() <= 2 and state_embedding.shape[-1] == self.state_embedding_size
+        assert state_embedding.dim() <= 2 and state_embedding.shape[-1] == self.state_embedding_size, str(state_embedding.shape)
 
         button_embedding = self.button_embedder.forward(buttons_vector)
         camera_embedding = self.camera_embedder.forward(camera_vector)
@@ -100,15 +100,19 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self, 
         action_space: gym.Env, 
         dynamics_function: DynamicsFunction, 
-        target_discriminator_logit: int, 
         n: int=1,
     ):
         self.action_space = action_space
         self.dynamics_function = dynamics_function
         self.n = n
-        self.target_discriminator_logit = target_discriminator_logit
+
+        # NOTE: this should be updated with each trajectory in the training script.
+        self.target_discriminator_logit = None
 
         self.states = dynamics_function.dummy_initial_state()
+
+    def set_target_logit(self, target_logit: int):
+        self.target_discriminator_logit = target_logit
 
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1, state_embedding.shape
@@ -129,7 +133,10 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
         obs = self.states
         dones = torch.zeros(self.n).bool()
-        infos = [{} for _ in range(len(self.states))]
+        # infos = [{} for _ in range(len(self.states))]
+
+        infos = discrim_logits
+
         return self.states, obs, rewards, dones, infos
 
     def clone(self, partners, clone_mask):

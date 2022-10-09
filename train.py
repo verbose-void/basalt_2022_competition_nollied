@@ -36,9 +36,10 @@ PRETRAINED_AGENT_MODEL_FILE = os.path.join(VPT_MODELS_ROOT, MODEL_FILE)
 PRETRAINED_AGENT_WEIGHTS_FILE = os.path.join(VPT_MODELS_ROOT, WEIGHTS_FILE)
 
 
+DISCRIMINATOR_CLASSES = 4 + 1  # 4 tasks, 1 decoy (FMC)
+
+
 NUM_WALKERS = 8
-DISCRIMINATOR_CLASSES = 2  # TODO: set discriminator classes to num of tasks
-TARGET_LOGIT = 0
 UNROLL_STEPS = 8
 
 
@@ -59,8 +60,7 @@ def get_dynamics_environment(minerl_env: gym.Env) -> MineRLDynamicsEnvironment:
     dynamics_function = get_dynamics_function()
     return MineRLDynamicsEnvironment(
         minerl_env.action_space, 
-        dynamics_function=dynamics_function, 
-        target_discriminator_logit=TARGET_LOGIT,
+        dynamics_function=dynamics_function,
         n=NUM_WALKERS,
     )
 
