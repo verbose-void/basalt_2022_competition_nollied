@@ -36,7 +36,7 @@ def vectorize_minerl_actions(actions: List[Dict], camera_scale: float=180):
 class DynamicsFunction:
     def __init__(
         self, 
-        state_embedding_size: int=4096, 
+        state_embedding_size: int=1024, 
         button_features: int=16, 
         camera_features: int=16, 
         embedder_layers: int=4,
@@ -109,7 +109,7 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self.states = dynamics_function.dummy_initial_state()
 
     def set_all_states(self, state_embedding: torch.Tensor):
-        assert state_embedding.dim() == 1
+        assert state_embedding.dim() == 1, state_embedding.shape
         self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size))
         self.states[:] = state_embedding.cpu()
 

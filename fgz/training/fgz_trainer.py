@@ -32,16 +32,15 @@ class FGZTrainer:
         self.fmc = fmc
         self.unroll_steps = unroll_steps
 
-    def get_fmc_trajectory(self, root_embedding, max_steps: int=None):
+    def get_fmc_trajectory(self, root_embedding):
+        self.fmc.vec_env.set_all_states(root_embedding.squeeze())
         self.fmc.reset()
-        self.fmc.vectorized_environment.set_all_states(None, root_embedding)
 
-        # make sure the trajectory that comes out doesn't exceed the comparing trajectory
-        steps = self.unroll_steps if max_steps else min(max_steps, self.unroll_steps)
-        self.fmc.simulate(steps)
+        self.fmc.simulate(self.unroll_steps)
 
         self.tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
         observations, actions, _ = self.tree_sampler.get_batch()
+        assert len(observations) == len(actions)
         return observations, actions
 
     def train_trajectory(self, use_tqdm: bool=False):
@@ -59,8 +58,15 @@ class FGZTrainer:
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
         
         it = tqdm(self.current_trajectory_window, desc="Sliding T Window", disable=not use_tqdm)
-        for window in it:
-            for frame, state_embedding, action in window:
+        for full_window in it:
+            for frame, state_embedding, action in full_window:
+                fmc_obs, fmc_acts = self.get_fmc_trajectory(state_embedding)
+
+                # NOTE: FMC may decide not to go the full depth, meaning it could return observations/actions that are
+                # not as long as the original window. for that case, we will shorten the window here.
+                steps = len(fmc_obs)
+                window = full_window[:steps]
+                assert len(window) == len(fmc_obs)
                 break
             break
 
