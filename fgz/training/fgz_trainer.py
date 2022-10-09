@@ -6,6 +6,8 @@ from fractal_zero.data.tree_sampler import TreeSampler
 
 from vpt.agent import MineRLAgent
 
+from fgz.data_utils.data_handler import ExpertDatasetUnroller
+
 class FGZTrainer:
 
     def __init__(

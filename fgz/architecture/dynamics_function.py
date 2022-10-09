@@ -6,6 +6,8 @@ from typing import Dict, List
 from vpt.lib.actions import Buttons
 import torch
 
+from fractal_zero.vectorized_environment import VectorizedEnvironment
+
 
 num_actions = len(Buttons.ALL)
 
@@ -87,7 +89,7 @@ class DynamicsFunction:
         return self.forward(state_embedding.cpu(), button_vec.unsqueeze(0), camera_vec.unsqueeze(0))
 
 
-class MineRLDynamicsEnvironment:
+class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
     def __init__(
         self, 
@@ -121,4 +123,13 @@ class MineRLDynamicsEnvironment:
         done = False
         info = None
 
-        return obs, reward, done, info
+        return obs, obs, reward, done, info
+
+    def clone(self, partners, clone_mask):
+        self.states[clone_mask] = self.states[partners[clone_mask]]
+
+    def batch_reset(self):
+        raise NotImplementedError
+
+    def batched_action_space_sample(self):
+        raise NotImplementedError
