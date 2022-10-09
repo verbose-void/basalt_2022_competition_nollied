@@ -20,6 +20,7 @@ class FGZTrainer:
         agent: MineRLAgent,
         fmc: FMC,
         data_handler: DataHandler,
+        dynamics_function_optimizer: torch.optim.Optimizer,
         unroll_steps: int=8,
     ):
         self.minerl_env = minerl_env
@@ -33,6 +34,8 @@ class FGZTrainer:
         # )
         self.fmc = fmc
         self.unroll_steps = unroll_steps
+
+        self.dynamics_function_optimizer = dynamics_function_optimizer
 
     def get_fmc_trajectory(self, root_embedding):
         self.fmc.vec_env.set_all_states(root_embedding.squeeze())
@@ -54,6 +57,21 @@ class FGZTrainer:
 
         return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
 
+    def get_expert_loss(self, window):
+        loss = 0.0
+        for frame, state_embedding, action in window:
+            # NOTE: FMC may decide not to go the full depth, meaning it could return observations/actions that are
+            # not as long as the original window. for that case, we will shorten the window here.
+            # steps = len(fmc_obs)
+            # window = full_window[:steps]
+            # assert len(window) == len(fmc_obs)
+
+            # NOTE: the first value in the confusions list will be 0 or None, so we should ignore it.
+            # this is because the first value corresponds to the root of the search tree (which doesn't
+            # have a reward). 
+            break
+        return loss
+
     def train_trajectory(self, use_tqdm: bool=False):
         """
         2 trajectories are gathered:
@@ -66,30 +84,23 @@ class FGZTrainer:
         resulting from exploiting the discriminator's confusion.
         """
 
+        self.dynamics_function_optimizer.zero_grad()
+
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
         
-        it = tqdm(self.current_trajectory_window, desc="Sliding T Window", disable=not use_tqdm)
+        it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm)
         for full_window in it:
             first_embedding = full_window[0][1]
             fmc_loss = self.get_fmc_loss(first_embedding)
 
-            # TODO: calculate the loss of the expert actions
-            expert_loss = 0.0
-            for frame, state_embedding, action in full_window:
-                # NOTE: FMC may decide not to go the full depth, meaning it could return observations/actions that are
-                # not as long as the original window. for that case, we will shorten the window here.
-                # steps = len(fmc_obs)
-                # window = full_window[:steps]
-                # assert len(window) == len(fmc_obs)
+            expert_loss = self.get_expert_loss(full_window)
 
-                # NOTE: the first value in the confusions list will be 0 or None, so we should ignore it.
-                # this is because the first value corresponds to the root of the search tree (which doesn't
-                # have a reward). 
-                break
-
-            print(fmc_loss)
+            print(fmc_loss, expert_loss)
             loss = fmc_loss + expert_loss
+
+            # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
+            self.dynamics_function_optimizer.step()
             break
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)

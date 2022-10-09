@@ -33,7 +33,7 @@ def vectorize_minerl_actions(actions: List[Dict], camera_scale: float=180):
         camera_vecs.append(cv)
     return torch.stack(button_vecs), torch.stack(camera_vecs)
 
-class DynamicsFunction:
+class DynamicsFunction(torch.nn.Module):
     def __init__(
         self, 
         state_embedding_size: int=1024, 
@@ -42,6 +42,8 @@ class DynamicsFunction:
         embedder_layers: int=4,
         discriminator_classes: int=2,
     ):
+        super().__init__()
+
         self.state_embedding_size = state_embedding_size
 
         self.button_embedder = torch.nn.Sequential(
