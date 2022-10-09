@@ -127,7 +127,9 @@ class FGZTrainer:
         resulting from exploiting the discriminator's confusion.
         """
 
-
+        # reset the hidden state of the agent, so we don't carry over any context from
+        # the previous trajectory.
+        self.agent.reset()
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
         
         it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm, total=max_steps)
