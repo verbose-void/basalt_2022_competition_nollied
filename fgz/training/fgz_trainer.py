@@ -65,11 +65,16 @@ class FGZTrainer:
         self.tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
         observations, actions, _, confusions, infos = self.tree_sampler.get_batch()
         assert len(observations) == len(actions) == len(confusions) == len(infos)
-        return observations, actions, infos # confusions
+
+        self.fmc_actions = actions
+        self.fmc_observations = observations
+        self.fmc_discrim_logits = infos
+
+        return self.fmc_discrim_logits
 
     def get_fmc_loss(self, full_window):
         fmc_root_embedding = full_window[0][1]
-        fmc_obs, fmc_acts, discrim_logits = self.get_fmc_trajectory(fmc_root_embedding)
+        discrim_logits = self.get_fmc_trajectory(fmc_root_embedding)
 
         discrim_logits = discrim_logits[1:]
         self.fmc_steps_taken = len(discrim_logits)
@@ -110,7 +115,7 @@ class FGZTrainer:
             loss += F.cross_entropy(logits, target_logit)
         return loss / self.fmc_steps_taken
 
-    def train_trajectory(self, use_tqdm: bool=False):
+    def train_trajectory(self, use_tqdm: bool=False, max_steps: int = None):
         """
         2 trajectories are gathered:
             1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
@@ -125,8 +130,8 @@ class FGZTrainer:
 
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
         
-        it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm)
-        for full_window in it:
+        it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm, total=max_steps)
+        for step, full_window in enumerate(it):
             self.dynamics_function_optimizer.zero_grad()
             
             fmc_loss = self.get_fmc_loss(full_window)
@@ -146,6 +151,9 @@ class FGZTrainer:
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
             self.dynamics_function_optimizer.step()
+
+            if max_steps and step >= max_steps:
+                break
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
