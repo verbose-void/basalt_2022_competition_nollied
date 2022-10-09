@@ -1,7 +1,7 @@
 {
   "challenge_id": "neurips-2022-minerl-basalt-competition",
-  "authors": ["aicrowd-bot"],
-  "description": "Test Model for MineRL BASALT Challenge",
+  "authors": ["nollied"],
+  "description": "FractalGANZero!",
   "licence": "GNU GPL",
   "gpu": true,
   "debug": true,
