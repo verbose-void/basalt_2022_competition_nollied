@@ -56,7 +56,9 @@ class ContiguousTrajectoryWindow:
 
         # should auto-raise StopIteration
         frame, action = self._trajectory_iterator.__next__()
-        state_embedding = self.agent.get_embedding({"pov": frame})  # TODO: this doesn't take into consideration batching!
+
+        obs = {"pov": frame}
+        state_embedding = self.agent.forward_observation(obs, return_embedding=True)  # TODO: this doesn't take into consideration batching!
 
         self.window.append((frame, state_embedding, action))
         if len(self.window) > self.frames_per_window:
