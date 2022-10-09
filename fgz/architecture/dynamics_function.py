@@ -103,12 +103,17 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self.n = n
         self.target_discriminator_logit = target_discriminator_logit
 
+        self.states = None
+
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1
         self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size))
         self.states[:] = state_embedding.cpu()
 
-    def batch_step(self, actions):
+    def batch_step(self, actions, freeze_mask):
+        if freeze_mask.sum() > 0:
+            raise NotImplementedError("TODO: allow freezing.")
+
         assert len(actions) == self.n
         assert self.states.shape == (self.n, self.dynamics_function.state_embedding_size)
 
@@ -120,16 +125,24 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
         obs = new_states
         reward = target_discrim_class_confusions
-        done = False
-        info = None
+        dones = torch.zeros(self.n).bool()
+        infos = [{} for _ in range(len(self.states))]
 
-        return obs, obs, reward, done, info
+        return obs, obs, reward, dones, infos
 
     def clone(self, partners, clone_mask):
         self.states[clone_mask] = self.states[partners[clone_mask]]
 
     def batch_reset(self):
-        raise NotImplementedError
+        if self.states is None:
+            raise ValueError("Please call set_all_states first.")
+
+        # no need to be able to reset for our purposes.
+        return self.states
 
     def batched_action_space_sample(self):
-        raise NotImplementedError
+        actions = []
+        for _ in range(self.n):
+            action_space = self.action_space
+            actions.append(action_space.sample())
+        return actions
