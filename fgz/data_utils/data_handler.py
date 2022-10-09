@@ -8,6 +8,8 @@ from typing import List
 from fgz.data_utils.data_loader import trajectory_generator
 import torch
 
+from vpt.agent import MineRLAgent
+
 import numpy as np
 
 
@@ -33,8 +35,9 @@ class ContiguousTrajectory:
 
 
 class ContiguousTrajectoryWindow:
-    def __init__(self, trajectory: ContiguousTrajectory, frames_per_window: int=4):
+    def __init__(self, trajectory: ContiguousTrajectory, agent: MineRLAgent, frames_per_window: int=4):
         self.trajectory = trajectory
+        self.agent = agent
         self.frames_per_window = frames_per_window
 
     @property
@@ -53,8 +56,9 @@ class ContiguousTrajectoryWindow:
 
         # should auto-raise StopIteration
         frame, action = self._trajectory_iterator.__next__()
+        state_embedding = self.agent.get_embedding({"pov": frame})  # TODO: this doesn't take into consideration batching!
 
-        self.window.append((frame, action))
+        self.window.append((frame, state_embedding, action))
         if len(self.window) > self.frames_per_window:
             self.window.pop(0)
 
@@ -114,10 +118,11 @@ class ContiguousTrajectoryDataLoader:
         return f"ContiguousTrajectoryDataLoader(n={len(self)}, {self.dataset_path})"
 
 class DataHandler:
-    def __init__(self, dataset_paths: List[str], frames_per_window: int):
+    def __init__(self, dataset_paths: List[str], agent: MineRLAgent, frames_per_window: int):
         self.dataset_paths = dataset_paths
         self.frames_per_window = frames_per_window
         self.loaders = [ContiguousTrajectoryDataLoader(path, task_id) for task_id, path in enumerate(self.dataset_paths)]
+        self.agent = agent
     
     @property
     def num_tasks(self):
@@ -132,7 +137,7 @@ class DataHandler:
     def sample_single_trajectory(self):
         task_id = np.random.randint(low=0, high=self.num_tasks)
         trajectory = self.loaders[task_id].sample()
-        return ContiguousTrajectoryWindow(trajectory, frames_per_window=self.frames_per_window)
+        return ContiguousTrajectoryWindow(trajectory, agent=self.agent, frames_per_window=self.frames_per_window)
 
 
 # class ExpertDatasetUnroller:
