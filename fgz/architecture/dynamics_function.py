@@ -111,24 +111,21 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self.states[:] = state_embedding.cpu()
 
     def batch_step(self, actions, freeze_mask):
-        if freeze_mask.sum() > 0:
-            raise NotImplementedError("TODO: allow freezing.")
-
         assert len(actions) == self.n
         assert self.states.shape == (self.n, self.dynamics_function.state_embedding_size)
 
         button_vectors, camera_vectors = vectorize_minerl_actions(actions)
         new_states, discrim_logits = self.dynamics_function.forward(self.states, button_vectors, camera_vectors)
-        self.states = new_states
-
         target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
 
-        obs = new_states
-        reward = target_discrim_class_confusions
+        # don't forward frozen states, frozen state's confusions are 0.
+        self.states[freeze_mask != 1] = new_states[freeze_mask != 1]
+        rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
+
+        obs = self.states
         dones = torch.zeros(self.n).bool()
         infos = [{} for _ in range(len(self.states))]
-
-        return obs, obs, reward, dones, infos
+        return self.states, obs, rewards, dones, infos
 
     def clone(self, partners, clone_mask):
         self.states[clone_mask] = self.states[partners[clone_mask]]
