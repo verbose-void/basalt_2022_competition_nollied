@@ -1,4 +1,7 @@
 
+import os
+from glob import glob
+
 import minerl
 from typing import List, Sequence
 
@@ -6,14 +9,43 @@ from vpt.agent import MineRLAgent
 from dyna.data.data_loader import DataLoader
 
 
-class JointExpertDataset:
-    """Loads data for each trajectory contiguously and each trajectory is labeled numerically with the task
-    that it is associated with.
-    """
+class ContiguousTrajectory:
+    def __init__(self, video_path: str, json_path: str, uid: str):
+        self.video_path = video_path
+        self.json_path = json_path
+        self.uid = uid
 
-    def __init__(self, dataloaders: Sequence[DataLoader]):
-        # each dataloader corresponds to a unique task type.
-        self.dataloaders = dataloaders
+    def __str__(self) -> str:
+        return f"T({self.uid})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class ContiguousTrajectoryDataLoader:
+    def __init__(self, dataset_path: str):
+        self.dataset_path = dataset_path
+
+        # gather all unique IDs for every video/json file pair.
+        unique_ids = glob(os.path.join(self.dataset_path, "*.mp4"))
+        unique_ids = list(set([os.path.basename(x).split(".")[0] for x in unique_ids]))
+        self.unique_ids = unique_ids
+
+        # create ContiguousTrajectory objects for every mp4/json file pair.
+        self.trajectories = []
+        for unique_id in unique_ids:
+            video_path = os.path.abspath(os.path.join(self.dataset_path, unique_id + ".mp4"))
+            json_path = os.path.abspath(os.path.join(self.dataset_path, unique_id + ".jsonl"))
+            t = ContiguousTrajectory(video_path, json_path, unique_id)
+            self.trajectories.append(t)
+
+    def __str__(self):
+        return f"ContiguousTrajectoryDataLoader(n={len(self.trajectories)}, {self.dataset_path})"
+
+class DataHandler:
+    def __init__(self, dataset_paths: List[str]):
+        self.dataset_paths = dataset_paths
+        self.loaders = [ContiguousTrajectoryDataLoader(path) for path in self.dataset_paths]
 
     def get_batch(self, task_index: int):
         # a batch is a contiguous set of observation, action pairs where 

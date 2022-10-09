@@ -11,12 +11,19 @@ from fractal_zero.search.fmc import FMC
 from fractal_zero.vectorized_environment import VectorizedDynamicsModelEnvironment
 from fgz.architecture.dynamics_function import DynamicsFunction, MineRLDynamicsEnvironment
 from fgz.training.fgz_trainer import FGZTrainer
+from fgz.data_utils.data_handler import DataHandler
 from vpt.run_agent import load_agent
 
 coloredlogs.install(logging.DEBUG)
 
-# The dataset and trained models are available in data/ directory from repository root.
 MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
+DATASET_PATHS = [
+    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltBuildVillageHouse-v0"),
+    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltCreateVillageAnimalPen-v0"),
+    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltFindCave-v0"),
+    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltMakeWaterfall-v0"),
+]
+
 VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
 PRETRAINED_AGENT_MODEL_FILE = os.path.join(VPT_MODELS_ROOT, "foundation-model-2x.model")
 PRETRAINED_AGENT_WEIGHTS_FILE = os.path.join(VPT_MODELS_ROOT, "rl-from-early-game-2x.weights")
@@ -48,6 +55,9 @@ def get_dynamics_environment(minerl_env: gym.Env) -> MineRLDynamicsEnvironment:
         n=NUM_WALKERS,
     )
 
+
+def get_data_handler():
+    return DataHandler(DATASET_PATHS)
 
 
 def main():
