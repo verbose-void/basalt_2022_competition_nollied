@@ -70,7 +70,7 @@ class DynamicsFunction:
         )
 
     def dummy_initial_state(self):
-        return torch.zeros(self.state_embedding_size, dtype=float)
+        return torch.zeros(self.state_embedding_size, dtype=float, requires_grad=True)
 
     def forward(self, state_embedding, buttons_vector, camera_vector):
         assert state_embedding.dim() <= 2 and state_embedding.shape[-1] == self.state_embedding_size

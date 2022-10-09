@@ -39,10 +39,17 @@ class ContiguousTrajectory:
 
 
 class ContiguousTrajectoryWindow:
-    def __init__(self, trajectory: ContiguousTrajectory, agent: MineRLAgent, frames_per_window: int=4):
+    def __init__(
+        self, 
+        trajectory: ContiguousTrajectory, 
+        agent: MineRLAgent, 
+        frames_per_window: int=4,
+        allow_agent_gradients: bool = False,
+    ):
         self.trajectory = trajectory
         self.agent = agent
         self.frames_per_window = frames_per_window
+        self.allow_agent_gradients = allow_agent_gradients
 
     @property
     def task_id(self):
@@ -64,8 +71,12 @@ class ContiguousTrajectoryWindow:
         # should auto-raise StopIteration
         frame, action = self._trajectory_iterator.__next__()
 
+        # TODO: this doesn't take into consideration batching w.r.t trajectories!
         obs = {"pov": frame}
-        state_embedding = self.agent.forward_observation(obs, return_embedding=True)  # TODO: this doesn't take into consideration batching!
+        state_embedding = self.agent.forward_observation(obs, return_embedding=True)
+
+        if not self.allow_agent_gradients:
+            state_embedding = state_embedding.detach()
 
         self.window.append((frame, state_embedding, action))
         if len(self.window) > self.frames_per_window:
