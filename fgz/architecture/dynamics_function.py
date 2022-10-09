@@ -69,6 +69,9 @@ class DynamicsFunction:
             torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
         )
 
+    def dummy_initial_state(self):
+        return torch.zeros(self.state_embedding_size, dtype=float)
+
     def forward(self, state_embedding, buttons_vector, camera_vector):
         assert state_embedding.dim() <= 2 and state_embedding.shape[-1] == self.state_embedding_size
 
@@ -103,7 +106,7 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self.n = n
         self.target_discriminator_logit = target_discriminator_logit
 
-        self.states = None
+        self.states = dynamics_function.dummy_initial_state()
 
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1
@@ -131,9 +134,6 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self.states[clone_mask] = self.states[partners[clone_mask]]
 
     def batch_reset(self):
-        if self.states is None:
-            raise ValueError("Please call set_all_states first.")
-
         # no need to be able to reset for our purposes.
         return self.states
 

@@ -24,6 +24,10 @@ class ContiguousTrajectory:
         self.uid = uid
         self.task_id = task_id
 
+    def __len__(self):
+        with open(self.json_path) as json_file:
+            return len(json_file.readlines())
+
     def __str__(self) -> str:
         return f"T({self.uid})"
 
@@ -43,6 +47,9 @@ class ContiguousTrajectoryWindow:
     @property
     def task_id(self):
         return self.trajectory.task_id
+
+    def __len__(self):
+        return len(self.trajectory)
 
     def __iter__(self):
         self._iter = 0

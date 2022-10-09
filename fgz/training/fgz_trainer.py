@@ -1,10 +1,14 @@
 import minerl
 import gym
 
+from tqdm import tqdm
+
 from fractal_zero.search.fmc import FMC
 from fractal_zero.data.tree_sampler import TreeSampler
 
 from vpt.agent import MineRLAgent
+
+from fgz.data_utils.data_handler import DataHandler
 
 class FGZTrainer:
 
@@ -13,10 +17,12 @@ class FGZTrainer:
         minerl_env: gym.Env,
         agent: MineRLAgent,
         fmc: FMC,
+        data_handler: DataHandler,
         unroll_steps: int=8,
     ):
         self.minerl_env = minerl_env
         self.agent = agent
+        self.data_handler = data_handler
 
         # TODO: create dynamics function externally as the vectorized environment inside FMC.
         # self.dynamics_function = DynamicsFunction(
@@ -38,7 +44,7 @@ class FGZTrainer:
         observations, actions, _ = self.tree_sampler.get_batch()
         return observations, actions
 
-    def train_trajectory(self):
+    def train_trajectory(self, use_tqdm: bool=False):
         """
         2 trajectories are gathered:
             1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
@@ -49,6 +55,14 @@ class FGZTrainer:
         Then, the discriminator is trained to recognize the differences between true expert trajectories and trajectories
         resulting from exploiting the discriminator's confusion.
         """
+
+        self.current_trajectory_window = self.data_handler.sample_single_trajectory()
+        
+        it = tqdm(self.current_trajectory_window, desc="Sliding T Window", disable=not use_tqdm)
+        for window in it:
+            for frame, state_embedding, action in window:
+                break
+            break
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:

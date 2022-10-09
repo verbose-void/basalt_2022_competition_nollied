@@ -147,6 +147,13 @@ def composite_images_with_alpha(image1, image2, alpha, x, y):
     image1[y:y + ch, x:x + cw, :] = (image1[y:y + ch, x:x + cw, :] * (1 - alpha) + image2[:ch, :cw, :] * alpha).astype(np.uint8)
 
 
+def get_json_data(json_path: str):
+    with open(json_path) as json_file:
+        json_lines = json_file.readlines()
+        json_data = "[" + ",".join(json_lines) + "]"
+        json_data = json.loads(json_data)
+    return json_data
+
 
 def trajectory_generator(video_path, json_path):
     cursor_image = cv2.imread(CURSOR_FILE, cv2.IMREAD_UNCHANGED)
@@ -166,10 +173,7 @@ def trajectory_generator(video_path, json_path):
     # and updating "hotbar.#" actions when hotbar selection changes.
     last_hotbar = 0
 
-    with open(json_path) as json_file:
-        json_lines = json_file.readlines()
-        json_data = "[" + ",".join(json_lines) + "]"
-        json_data = json.loads(json_data)
+    json_data = get_json_data(json_path)
     for i in range(len(json_data)):
         step_data = json_data[i]
 
