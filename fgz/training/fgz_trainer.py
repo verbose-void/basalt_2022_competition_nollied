@@ -6,8 +6,6 @@ from fractal_zero.data.tree_sampler import TreeSampler
 
 from vpt.agent import MineRLAgent
 
-from fgz.data_utils.data_handler import ExpertDatasetUnroller
-
 class FGZTrainer:
 
     def __init__(
@@ -52,12 +50,13 @@ class FGZTrainer:
         resulting from exploiting the discriminator's confusion.
         """
 
-        unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
-        for expert_sequence in unroller:
-            start_embedding, _ = expert_sequence[0]  # "representation function"
+        # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
+        # for expert_sequence in unroller:
+        #     start_embedding, _ = expert_sequence[0]  # "representation function"
 
-            fmc_dynamics_embeddings, fmc_actions = self.get_fmc_trajectory(
-                start_embedding, 
-                max_steps=self.unroll_steps
-            )
-            expert_embeddings, expert_actions = unroller.decompose_window(expert_sequence[1:])
+        #     fmc_dynamics_embeddings, fmc_actions = self.get_fmc_trajectory(
+        #         start_embedding, 
+        #         max_steps=self.unroll_steps
+        #     )
+        #     expert_embeddings, expert_actions = unroller.decompose_window(expert_sequence[1:])
+        pass

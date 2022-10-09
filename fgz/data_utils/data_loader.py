@@ -148,86 +148,72 @@ def composite_images_with_alpha(image1, image2, alpha, x, y):
 
 
 
-def trajectory_generator(trajectory_id, video_path, json_path):
+def trajectory_generator(video_path, json_path):
     cursor_image = cv2.imread(CURSOR_FILE, cv2.IMREAD_UNCHANGED)
     # Assume 16x16
     cursor_image = cursor_image[:16, :16, :]
     cursor_alpha = cursor_image[:, :, 3:] / 255.0
     cursor_image = cursor_image[:, :, :3]
 
-    while True:
-        # task = tasks_queue.get()
-        # if task is None:
-        #     break
-        # trajectory_id, video_path, json_path = task
+    video = cv2.VideoCapture(video_path)
+    # Note: In some recordings, the game seems to start
+    #       with attack always down from the beginning, which
+    #       is stuck down until player actually presses attack
+    attack_is_stuck = False
+    # Scrollwheel is allowed way to change items, but this is
+    # not captured by the recorder.
+    # Work around this by keeping track of selected hotbar item
+    # and updating "hotbar.#" actions when hotbar selection changes.
+    last_hotbar = 0
 
-        video = cv2.VideoCapture(video_path)
-        # Note: In some recordings, the game seems to start
-        #       with attack always down from the beginning, which
-        #       is stuck down until player actually presses attack
-        attack_is_stuck = False
-        # Scrollwheel is allowed way to change items, but this is
-        # not captured by the recorder.
-        # Work around this by keeping track of selected hotbar item
-        # and updating "hotbar.#" actions when hotbar selection changes.
-        last_hotbar = 0
+    with open(json_path) as json_file:
+        json_lines = json_file.readlines()
+        json_data = "[" + ",".join(json_lines) + "]"
+        json_data = json.loads(json_data)
+    for i in range(len(json_data)):
+        step_data = json_data[i]
 
-        with open(json_path) as json_file:
-            json_lines = json_file.readlines()
-            json_data = "[" + ",".join(json_lines) + "]"
-            json_data = json.loads(json_data)
-        for i in range(len(json_data)):
-            # if quit_workers_event.is_set():
-                # break
-            step_data = json_data[i]
+        if i == 0:
+            # Check if attack will be stuck down
+            if step_data["mouse"]["newButtons"] == [0]:
+                attack_is_stuck = True
+        elif attack_is_stuck:
+            # Check if we press attack down, then it might not be stuck
+            if 0 in step_data["mouse"]["newButtons"]:
+                attack_is_stuck = False
+        # If still stuck, remove the action
+        if attack_is_stuck:
+            step_data["mouse"]["buttons"] = [button for button in step_data["mouse"]["buttons"] if button != 0]
 
-            if i == 0:
-                # Check if attack will be stuck down
-                if step_data["mouse"]["newButtons"] == [0]:
-                    attack_is_stuck = True
-            elif attack_is_stuck:
-                # Check if we press attack down, then it might not be stuck
-                if 0 in step_data["mouse"]["newButtons"]:
-                    attack_is_stuck = False
-            # If still stuck, remove the action
-            if attack_is_stuck:
-                step_data["mouse"]["buttons"] = [button for button in step_data["mouse"]["buttons"] if button != 0]
+        action, is_null_action = json_action_to_env_action(step_data)
 
-            action, is_null_action = json_action_to_env_action(step_data)
+        # Update hotbar selection
+        current_hotbar = step_data["hotbar"]
+        if current_hotbar != last_hotbar:
+            action["hotbar.{}".format(current_hotbar + 1)] = 1
+        last_hotbar = current_hotbar
 
-            # Update hotbar selection
-            current_hotbar = step_data["hotbar"]
-            if current_hotbar != last_hotbar:
-                action["hotbar.{}".format(current_hotbar + 1)] = 1
-            last_hotbar = current_hotbar
+        # Read frame even if this is null so we progress forward
+        ret, frame = video.read()
+        if ret:
+            # Skip null actions as done in the VPT paper
+            # NOTE: in VPT paper, this was checked _after_ transforming into agent's action-space.
+            #       We do this here as well to reduce amount of data sent over.
+            if is_null_action:
+                continue
+            if step_data["isGuiOpen"]:
+                camera_scaling_factor = frame.shape[0] / MINEREC_ORIGINAL_HEIGHT_PX
+                cursor_x = int(step_data["mouse"]["x"] * camera_scaling_factor)
+                cursor_y = int(step_data["mouse"]["y"] * camera_scaling_factor)
+                composite_images_with_alpha(frame, cursor_image, cursor_alpha, cursor_x, cursor_y)
+            cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
+            frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
+            frame = resize_image(frame, AGENT_RESOLUTION)
+            yield frame, action
 
-            # Read frame even if this is null so we progress forward
-            ret, frame = video.read()
-            if ret:
-                # Skip null actions as done in the VPT paper
-                # NOTE: in VPT paper, this was checked _after_ transforming into agent's action-space.
-                #       We do this here as well to reduce amount of data sent over.
-                if is_null_action:
-                    continue
-                if step_data["isGuiOpen"]:
-                    camera_scaling_factor = frame.shape[0] / MINEREC_ORIGINAL_HEIGHT_PX
-                    cursor_x = int(step_data["mouse"]["x"] * camera_scaling_factor)
-                    cursor_y = int(step_data["mouse"]["y"] * camera_scaling_factor)
-                    composite_images_with_alpha(frame, cursor_image, cursor_alpha, cursor_x, cursor_y)
-                cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
-                frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
-                frame = resize_image(frame, AGENT_RESOLUTION)
-                # output_queue.put((trajectory_id, frame, action), timeout=QUEUE_TIMEOUT)
-
-                yield trajectory_id, frame, action
-
-            else:
-                print(f"Could not read frame from video {video_path}")
-        video.release()
-        # if quit_workers_event.is_set():
-            # break
-    # Tell that we ended
-    # output_queue.put(None)
+        else:
+            print(f"Could not read frame from video {video_path}")
+    video.release()
 
 
 def data_loader_worker(tasks_queue, output_queue, quit_workers_event):

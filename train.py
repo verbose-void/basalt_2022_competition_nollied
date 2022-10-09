@@ -57,7 +57,7 @@ def get_dynamics_environment(minerl_env: gym.Env) -> MineRLDynamicsEnvironment:
 
 
 def get_data_handler():
-    return DataHandler(DATASET_PATHS)
+    return DataHandler(DATASET_PATHS, frames_per_window=UNROLL_STEPS)
 
 
 def main():
