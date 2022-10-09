@@ -45,6 +45,15 @@ class FGZTrainer:
         assert len(observations) == len(actions) == len(confusions)
         return observations, actions, confusions
 
+    def get_fmc_loss(self, fmc_root_embedding):
+        fmc_obs, fmc_acts, fmc_confusions = self.get_fmc_trajectory(fmc_root_embedding)
+
+        fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
+        fmc_confusions = torch.cat(fmc_confusions)
+        fmc_discriminator_targets = torch.zeros_like(fmc_confusions)
+
+        return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
+
     def train_trajectory(self, use_tqdm: bool=False):
         """
         2 trajectories are gathered:
@@ -61,30 +70,26 @@ class FGZTrainer:
         
         it = tqdm(self.current_trajectory_window, desc="Sliding T Window", disable=not use_tqdm)
         for full_window in it:
-            for frame, state_embedding, action in full_window:
-                fmc_obs, fmc_acts, fmc_confusions = self.get_fmc_trajectory(state_embedding)
+            first_embedding = full_window[0][1]
+            fmc_loss = self.get_fmc_loss(first_embedding)
 
+            # TODO: calculate the loss of the expert actions
+            expert_loss = 0.0
+            for frame, state_embedding, action in full_window:
                 # NOTE: FMC may decide not to go the full depth, meaning it could return observations/actions that are
                 # not as long as the original window. for that case, we will shorten the window here.
-                steps = len(fmc_obs)
-                window = full_window[:steps]
-                assert len(window) == len(fmc_obs)
+                # steps = len(fmc_obs)
+                # window = full_window[:steps]
+                # assert len(window) == len(fmc_obs)
 
                 # NOTE: the first value in the confusions list will be 0 or None, so we should ignore it.
                 # this is because the first value corresponds to the root of the search tree (which doesn't
                 # have a reward). 
-
-                fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
-                fmc_confusions = torch.cat(fmc_confusions)
-                # fmc_confusions = torch.tensor(fmc_confusions[1:], requires_grad=True)
-                fmc_discriminator_targets = torch.zeros_like(fmc_confusions)
-
-                loss = F.mse_loss(fmc_confusions, fmc_discriminator_targets)
-                print(loss)
-                loss.backward()
-                print(loss)
-
                 break
+
+            print(fmc_loss)
+            loss = fmc_loss + expert_loss
+            loss.backward()
             break
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
