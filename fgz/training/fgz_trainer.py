@@ -45,6 +45,7 @@ class FGZTrainer:
     ):
         self.agent = agent
         self.data_handler = data_handler
+        self.current_trajectory_window = None
 
         # TODO: create dynamics function externally as the vectorized environment inside FMC.
         # self.dynamics_function = DynamicsFunction(
@@ -244,3 +245,26 @@ class FGZTrainer:
             step += 1
 
         env.close()
+
+    def save(self, path: str):
+        current_trajectory_window = self.current_trajectory_window
+        agent = self.agent
+        data_handler = self.data_handler
+
+        # these values cannot be saved for some reason.
+        self.current_trajectory_window = None
+        self.agent = None
+        self.data_handler.agent = None
+
+        torch.save(self, path)
+
+        self.current_trajectory_window = current_trajectory_window
+        self.agent = agent
+        self.data_handler = data_handler
+
+    @staticmethod
+    def load(path: str, agent: MineRLAgent):
+        trainer: FGZTrainer = torch.load(path)
+        trainer.agent = agent
+        trainer.data_handler.agent = agent
+        return trainer
