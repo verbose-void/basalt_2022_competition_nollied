@@ -1,5 +1,6 @@
 import minerl
 import gym
+import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
@@ -23,13 +24,18 @@ TASK_ALIASES = {
     2: "FindCave",
     3: "BuildWaterfall",
 }
+MINERL_ENV_TO_TASK_LOGIT = {
+    "MineRLBasaltBuildVillageHouse-v0": 0,
+    "MineRLBasaltCreateVillageAnimalPen-v0": 1,
+    "MineRLBasaltFindCave-v0": 2,
+    "MineRLBasaltMakeWaterfall-v0": 3,
+}
 
 
 class FGZTrainer:
 
     def __init__(
         self,
-        minerl_env: gym.Env,
         agent: MineRLAgent,
         fmc: FMC,
         data_handler: DataHandler,
@@ -37,7 +43,6 @@ class FGZTrainer:
         unroll_steps: int=8,
         use_wandb: bool = False,
     ):
-        self.minerl_env = minerl_env
         self.agent = agent
         self.data_handler = data_handler
 
@@ -75,6 +80,7 @@ class FGZTrainer:
         self.fmc_actions = actions
         self.fmc_observations = observations
         self.fmc_discrim_logits = infos
+        self.fmc_confusions = torch.tensor(confusions[1:], requires_grad=False)
 
         return self.fmc_discrim_logits
 
@@ -138,15 +144,19 @@ class FGZTrainer:
         self.agent.reset()
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
 
+        # TODO: move somewhere else
         task_name = TASK_ALIASES[self.current_trajectory_window.task_id]
-        uid = self.current_trajectory_window.uid
-        desc = f"Training on {task_name}: {uid}"
+        uid = self.current_trajectory_window.uid[-8:]
+        start_frame = self.current_trajectory_window.start
+        end_frame = self.current_trajectory_window.end
+        desc = f"Training on {task_name}({uid})[{start_frame}:{end_frame}]"
         
         it = tqdm(self.current_trajectory_window, desc=desc, disable=not use_tqdm, total=max_steps)
+        # total_loss = 0.0
         for step, full_window in enumerate(it):
             self.dynamics_function_optimizer.zero_grad()
             
-            fmc_loss = self.get_fmc_loss(full_window)
+            fmc_loss = self.get_fmc_loss(full_window) / 4  # NOTE: divide by 4 to equalize the loss with the expert dataset.
             expert_loss = self.get_expert_loss(full_window)
             loss = (fmc_loss + expert_loss) / 2
 
@@ -157,20 +167,27 @@ class FGZTrainer:
                     "train/fmc_loss": fmc_loss,
                     "train/expert_loss": expert_loss,
                     "train/loss": loss,
-                    "train/fmc_steps_taken": self.fmc_steps_taken,
+                    "fmc/steps_taken": self.fmc_steps_taken,
+                    "fmc/average_confusion_reward": self.fmc_confusions.mean(),
                 })
 
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
             self.dynamics_function_optimizer.step()
             
-            if step % 16:  # TODO: param
-                # TODO: is this okay to do?? 
-                self.agent.reset()
-                torch.cuda.empty_cache()
+            # if step % 16:  # TODO: param
+            #     # TODO: is this okay to do?? 
+            #     self.agent.reset()
+            #     torch.cuda.empty_cache()
+
+            # total_loss += loss
 
             if max_steps and step >= max_steps:
                 break
+
+        # total_loss /= step
+        # total_loss.backward()
+        # self.dynamics_function_optimizer.step()
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
@@ -181,3 +198,49 @@ class FGZTrainer:
         #         max_steps=self.unroll_steps
         #     )
         #     expert_embeddings, expert_actions = unroller.decompose_window(expert_sequence[1:])
+
+    @torch.no_grad()
+    def evaluate(self, minerl_environment_id: str, render: bool=False, max_steps: int=None, force_no_escape: bool = False):
+        target_logit = MINERL_ENV_TO_TASK_LOGIT[minerl_environment_id]
+
+        env = gym.make(minerl_environment_id)
+        obs = env.reset()
+
+        self.eval_actions = []
+        self.eval_rewards = []
+
+        self.agent.reset()
+        self.fmc.vec_env.set_target_logit(target_logit)
+
+        step = 0
+        while True:
+            embedding = self.agent.forward_observation(obs, return_embedding=True)
+            self.fmc.vec_env.set_all_states(embedding.squeeze())
+            self.fmc.reset()
+            self.fmc.simulate(self.unroll_steps)
+
+            # get best FMC action
+            path = self.fmc.tree.best_path
+            action = path.get_action_between(path.ordered_states[0], path.ordered_states[1])
+
+            if force_no_escape:
+                action["ESC"] = np.zeros(1, dtype=int)
+
+            self.eval_actions.append(action)
+
+            obs, reward, done, info = env.step(action)
+            self.eval_rewards.append(reward)
+
+            if render:
+                env.render()
+
+            if max_steps is not None:
+                if step >= max_steps:
+                    break
+
+            if done:
+                break
+
+            step += 1
+
+        env.close()
