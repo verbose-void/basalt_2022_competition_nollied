@@ -102,21 +102,21 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         action_space: gym.Env, 
         dynamics_function: DynamicsFunction, 
         n: int=1,
-        apply_softmax_before_reward: bool = True,
+        # apply_softmax_before_reward: bool = True,
     ):
         self.action_space = action_space
         self.dynamics_function = dynamics_function
         self.n = n
 
         # NOTE: this should be updated with each trajectory in the training script.
-        self.target_discriminator_logit = None
+        self.target_task_logit = None
 
-        self.apply_softmax_before_reward = apply_softmax_before_reward
+        # self.apply_softmax_before_reward = apply_softmax_before_reward
 
         self.states = dynamics_function.dummy_initial_state()
 
     def set_target_logit(self, target_logit: int):
-        self.target_discriminator_logit = target_logit
+        self.target_task_logit = target_logit
 
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1, state_embedding.shape
@@ -137,13 +137,22 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         # other logits are beingn minimized, including the FMC logit. this is ideal,
         # because it means the actions preferred by FMC simultaneously maximize the target logit
         # and minimize all of the others.
-        if self.apply_softmax_before_reward:
-            soft_logits = F.softmax(discrim_logits, dim=-1)
-            soft_confusions = 1-soft_logits[:, self.target_discriminator_logit]
-            rewards = torch.where(freeze_mask, 0, soft_confusions)
-        else:
-            target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
-            rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
+        # if self.apply_softmax_before_reward:
+        #     soft_logits = F.softmax(discrim_logits, dim=-1)
+        #     soft_confusions = 1-soft_logits[:, self.target_discriminator_logit]
+        #     rewards = torch.where(freeze_mask, 0, soft_confusions)
+        # else:
+        #     target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
+        #     rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
+
+        soft_task_logits = F.softmax(discrim_logits[:, :4], dim=-1)
+        soft_source_logits = F.softmax(discrim_logits[:, 4:], dim=-1)
+
+        # the agent wants to maximize the target task logit (we want the discriminator to be 100% certain of the task we're performing)
+        # AND to maximize the expert source logit (we want the discriminator to be 100% certain this trajectory was sourced from the expert)
+        task_reward = soft_task_logits[:, self.target_task_logit]
+        source_reward = soft_source_logits[:, 1]
+        rewards = (task_reward + source_reward) / 2  # max reward should be 1
 
         obs = self.states
         dones = torch.zeros(self.n).bool()

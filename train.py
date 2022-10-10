@@ -36,7 +36,7 @@ PRETRAINED_AGENT_MODEL_FILE = os.path.join(VPT_MODELS_ROOT, MODEL_FILE)
 PRETRAINED_AGENT_WEIGHTS_FILE = os.path.join(VPT_MODELS_ROOT, WEIGHTS_FILE)
 
 
-DISCRIMINATOR_CLASSES = 4 + 1  # 4 tasks, 1 decoy (FMC)
+DISCRIMINATOR_CLASSES = 4 + 2  # 4 tasks, 0 or 1 for FMC or expert
 
 
 NUM_WALKERS = 128
@@ -53,7 +53,7 @@ def get_dynamics_function():
     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
         discriminator_classes=DISCRIMINATOR_CLASSES,
-        embedder_layers=16,
+        embedder_layers=4,
         button_features=128,
         camera_features=32,
     )

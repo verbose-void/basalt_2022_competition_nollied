@@ -62,12 +62,17 @@ class FGZTrainer:
     def num_tasks(self):
         return self.data_handler.num_tasks
 
+    @property
+    def task_logit(self):
+        return self.current_trajectory_window.task_id
+
     def get_fmc_trajectory(self, root_embedding):
         # ensure FMC is exploiting the correct logit. this basically means FMC will try to
         # find actions that maximize the discriminator's confusion for this specifc task.
         # the hope is that FMC will choose actions that make the discriminator beieve they are
         # from the expert performing that task.
-        self.fmc.vec_env.set_target_logit(self.current_trajectory_window.task_id)
+        
+        self.fmc.vec_env.set_target_logit(self.task_logit)
 
         self.fmc.vec_env.set_all_states(root_embedding.squeeze())
         self.fmc.reset()
@@ -85,17 +90,31 @@ class FGZTrainer:
 
         return self.fmc_discrim_logits
 
-    def get_fmc_loss(self, full_window):
-        fmc_root_embedding = full_window[0][1]
-        discrim_logits = self.get_fmc_trajectory(fmc_root_embedding)
-
-        discrim_logits = discrim_logits[1:]
-        self.fmc_steps_taken = len(discrim_logits)
-
+    def get_discriminator_loss(self, discriminator_logits, is_fmc_source: bool):
         # TODO: explain
-        discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
-        discrim_logits = torch.cat(discrim_logits)
-        fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * FMC_LOGIT
+
+        # discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
+        # discrim_logits = torch.cat(discrim_logits)
+        # fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * FMC_LOGIT
+
+        task_logits = discriminator_logits[:, :4]
+        source_logits = discriminator_logits[:, 4:6]
+
+        assert len(discriminator_logits) == self.fmc_steps_taken
+        assert task_logits.shape[1] == 4, task_logits.shape
+        assert source_logits.shape[1] == 2, source_logits.shape
+
+        task_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.task_logit
+
+        # class label 0 = FMC is the source
+        source_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long)
+        if is_fmc_source:
+            source_targets *= 0
+
+        # there are 2 FMC losses. one is for the discriminator predicting the task,
+        # the other is predicting whether FMC or the expert generated the trajectory.
+        
+
 
         # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
         # fmc_confusions = torch.cat(fmc_confusions)
@@ -104,14 +123,69 @@ class FGZTrainer:
         # self.fmc_steps_taken = len(fmc_confusions)
         # return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
 
-        return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
+        # return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
+
+        task_loss = F.cross_entropy(task_logits, task_targets)
+        source_loss = F.cross_entropy(source_logits, source_targets)
+
+        # divide by 4 to equalize the loss with the expert dataset.
+        # if is_fmc_source:
+        #     task_loss /= 4
+        #     source_loss /= 4
+
+        return task_loss, source_loss
+
+    def get_fmc_loss(self, full_window):
+        fmc_root_embedding = full_window[0][1]
+        discrim_logits = self.get_fmc_trajectory(fmc_root_embedding)
+
+        discrim_logits = discrim_logits[1:]
+        self.fmc_steps_taken = len(discrim_logits)
+
+        # # TODO: explain
+        discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
+        discrim_logits = torch.cat(discrim_logits)
+        # # fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * FMC_LOGIT
+
+        # task_logits = discrim_logits[:, :4]
+        # source_logits = discrim_logits[:, 4:6]
+
+        # assert task_logits.shape[1] == 4
+        # assert source_logits.shape[1] == 2
+
+        # task_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.task_logit
+        # source_targets = torch.zeros(self.fmc_steps_taken, dtype=torch.long)  # class label 0 = FMC is the source
+
+        # # there are 2 FMC losses. one is for the discriminator predicting the task,
+        # # the other is predicting whether FMC or the expert generated the trajectory.
+        
+
+
+        # # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
+        # # fmc_confusions = torch.cat(fmc_confusions)
+        # # fmc_discriminator_targets = torch.zeros_like(fmc_confusions)
+
+        # # self.fmc_steps_taken = len(fmc_confusions)
+        # # return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
+
+        # # return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
+
+        # task_loss = F.cross_entropy(task_logits, task_targets)
+        # source_loss = F.cross_entropy(source_logits, source_targets)
+
+        # # NOTE: divide by 4 to equalize the loss with the expert dataset.
+        # task_loss /= 4
+        # source_loss /= 4
+
+        # return task_loss, source_loss
+        return self.get_discriminator_loss(discrim_logits, is_fmc_source=True)
 
     def get_expert_loss(self, full_window):
         _, root_embedding, _ = full_window[0]
         dynamics: DynamicsFunction = self.fmc.vec_env.dynamics_function
 
         # each logit corresponds to one of the tasks. we can consider this to be our label
-        target_logit = torch.tensor([self.current_trajectory_window.task_id], dtype=torch.long)
+        # target_logit = torch.tensor([self.task_logit], dtype=torch.long)
 
         # one-hot encode the task classificaiton target
         # classification_target = torch.zeros(self.num_tasks, dtype=torch.bool)
@@ -119,14 +193,21 @@ class FGZTrainer:
 
         # unroll expert
         embedding = root_embedding.squeeze(0)
-        loss = 0.0
+
+        all_logits = []
 
         # make sure we unroll to the length of FMC
         for i in range(self.fmc_steps_taken):
             _, _, action = full_window[i]
+
             embedding, logits = dynamics.forward_action(embedding, action)
-            loss += F.cross_entropy(logits, target_logit)
-        return loss / self.fmc_steps_taken
+            all_logits.append(logits)
+
+            # loss += F.cross_entropy(logits, target_logit)
+        # return loss / self.fmc_steps_taken
+
+        all_logits = torch.cat(all_logits)
+        return self.get_discriminator_loss(all_logits, is_fmc_source=False)
 
     def train_sub_trajectory(self, use_tqdm: bool=False, max_steps: int = None):
         """
@@ -146,7 +227,7 @@ class FGZTrainer:
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
 
         # TODO: move somewhere else
-        task_name = TASK_ALIASES[self.current_trajectory_window.task_id]
+        task_name = TASK_ALIASES[self.task_logit]
         uid = self.current_trajectory_window.uid[-8:]
         start_frame = self.current_trajectory_window.start
         end_frame = self.current_trajectory_window.end
@@ -157,19 +238,33 @@ class FGZTrainer:
         for step, full_window in enumerate(it):
             self.dynamics_function_optimizer.zero_grad()
             
-            fmc_loss = self.get_fmc_loss(full_window) / 4  # NOTE: divide by 4 to equalize the loss with the expert dataset.
-            expert_loss = self.get_expert_loss(full_window)
-            loss = (fmc_loss + expert_loss) / 2
+            # fmc_loss = self.get_fmc_loss(full_window)
+            # expert_loss = self.get_expert_loss(full_window)
+            fmc_task_loss, fmc_source_loss = self.get_fmc_loss(full_window)
+            expert_task_loss, expert_source_loss = self.get_expert_loss(full_window)
+            # loss = (fmc_loss + expert_loss) / 2
+
+            task_loss = (fmc_task_loss + expert_task_loss) / 2
+            source_loss = (fmc_source_loss + expert_source_loss) / 2
+
+            loss = (task_loss + source_loss) / 2
 
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
 
             if self.use_wandb and wandb.run:
                 wandb.log({
-                    "train/fmc_loss": fmc_loss,
-                    "train/expert_loss": expert_loss,
-                    "train/loss": loss,
+                    "train/fmc/task_loss": fmc_task_loss,
+                    "train/fmc/source_loss": fmc_source_loss,
+                    
+                    "train/expert/task_loss": expert_task_loss,
+                    "train/expert/source_loss": expert_source_loss,
+
+                    "train/total_loss": loss,
+                    "train/task_loss": task_loss,
+                    "train/source_loss": source_loss,
+
                     "fmc/steps_taken": self.fmc_steps_taken,
-                    "fmc/average_confusion_reward": self.fmc_confusions.mean(),
+                    "fmc/average_reward": self.fmc_confusions.mean(),
                 })
 
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
