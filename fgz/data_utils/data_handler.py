@@ -202,6 +202,7 @@ class DataHandler:
             trajectory, 
             agent=self.agent, 
             frames_per_window=self.frames_per_window,
+            num_strides=1,
             use_random_subsection=True,
         )
 
