@@ -247,7 +247,9 @@ class FGZTrainer:
             task_loss = (fmc_task_loss + expert_task_loss) / 2
             source_loss = (fmc_source_loss + expert_source_loss) / 2
 
-            loss = (task_loss + source_loss) / 2
+            loss = expert_task_loss
+            # loss = task_loss
+            # loss = (task_loss + source_loss) / 2
 
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
 
@@ -255,7 +257,7 @@ class FGZTrainer:
                 wandb.log({
                     "train/fmc/task_loss": fmc_task_loss,
                     "train/fmc/source_loss": fmc_source_loss,
-                    
+
                     "train/expert/task_loss": expert_task_loss,
                     "train/expert/source_loss": expert_source_loss,
 

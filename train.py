@@ -53,7 +53,7 @@ def get_dynamics_function():
     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
         discriminator_classes=DISCRIMINATOR_CLASSES,
-        embedder_layers=4,
+        embedder_layers=16,
         button_features=128,
         camera_features=32,
     )

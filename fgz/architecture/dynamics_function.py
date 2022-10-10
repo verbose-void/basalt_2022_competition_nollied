@@ -152,7 +152,11 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         # AND to maximize the expert source logit (we want the discriminator to be 100% certain this trajectory was sourced from the expert)
         task_reward = soft_task_logits[:, self.target_task_logit]
         source_reward = soft_source_logits[:, 1]
-        rewards = (task_reward + source_reward) / 2  # max reward should be 1
+
+        # max reward should be 1
+        # rewards = (task_reward + source_reward) / 2
+        rewards = task_reward
+
         rewards[freeze_mask] = 0 # do not reward when frozen.
 
         obs = self.states
