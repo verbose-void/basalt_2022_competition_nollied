@@ -1,6 +1,7 @@
 
 import os
 from glob import glob
+from warnings import warn
 
 import minerl
 from typing import List
@@ -97,9 +98,10 @@ class ContiguousTrajectoryWindow:
 
 
 class ContiguousTrajectoryDataLoader:
-    def __init__(self, dataset_path: str, task_id: int):
+    def __init__(self, dataset_path: str, task_id: int, minimum_steps: int=64):
         self.dataset_path = dataset_path
         self.task_id = task_id
+        self.minimum_steps = minimum_steps
 
         # gather all unique IDs for every video/json file pair.
         unique_ids = glob(os.path.join(self.dataset_path, "*.mp4"))
@@ -132,7 +134,17 @@ class ContiguousTrajectoryDataLoader:
         self._iter += 1
 
     def sample(self) -> ContiguousTrajectory:
-        return np.random.choice(self.trajectories)
+        trajectory_index = np.random.randint(low=0, high=len(self))
+        t = self.trajectories[trajectory_index]
+
+        # remove the trajectory and pick a new sample if it's not long enough.
+        t_len = len(t)
+        if t_len < self.minimum_steps:
+            warn(f"Removing trajectory from the dataset. It's length was too short ({t_len} < {self.minimum_steps}).")
+            self.trajectories.pop(trajectory_index)
+            return self.sample()
+
+        return t
 
     def __str__(self):
         return f"ContiguousTrajectoryDataLoader(n={len(self)}, {self.dataset_path})"

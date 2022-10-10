@@ -134,6 +134,11 @@ class FGZTrainer:
         
         it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm, total=max_steps)
         for step, full_window in enumerate(it):
+            
+            if step % 16:
+                # TODO: is this okay to do?? 
+                self.agent.reset()
+
             self.dynamics_function_optimizer.zero_grad()
             
             fmc_loss = self.get_fmc_loss(full_window)
@@ -153,6 +158,7 @@ class FGZTrainer:
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
             self.dynamics_function_optimizer.step()
+            # torch.cuda.empty_cache()
 
             if max_steps and step >= max_steps:
                 break
