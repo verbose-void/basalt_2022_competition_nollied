@@ -16,7 +16,13 @@ from fgz.data_utils.data_handler import DataHandler
 
 
 # TODO: move to train script
-FMC_LOGIT = 4 
+FMC_LOGIT = 4
+TASK_ALIASES = {
+    0: "BuildHouse",
+    1: "AnimalPen",
+    2: "FindCave",
+    3: "BuildWaterfall",
+}
 
 
 class FGZTrainer:
@@ -115,7 +121,7 @@ class FGZTrainer:
             loss += F.cross_entropy(logits, target_logit)
         return loss / self.fmc_steps_taken
 
-    def train_trajectory(self, use_tqdm: bool=False, max_steps: int = None):
+    def train_sub_trajectory(self, use_tqdm: bool=False, max_steps: int = None):
         """
         2 trajectories are gathered:
             1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
@@ -131,14 +137,13 @@ class FGZTrainer:
         # the previous trajectory.
         self.agent.reset()
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
-        
-        it = tqdm(self.current_trajectory_window, desc="Training on Trajectory", disable=not use_tqdm, total=max_steps)
-        for step, full_window in enumerate(it):
-            
-            if step % 16:
-                # TODO: is this okay to do?? 
-                self.agent.reset()
 
+        task_name = TASK_ALIASES[self.current_trajectory_window.task_id]
+        uid = self.current_trajectory_window.uid
+        desc = f"Training on {task_name}: {uid}"
+        
+        it = tqdm(self.current_trajectory_window, desc=desc, disable=not use_tqdm, total=max_steps)
+        for step, full_window in enumerate(it):
             self.dynamics_function_optimizer.zero_grad()
             
             fmc_loss = self.get_fmc_loss(full_window)
@@ -158,7 +163,11 @@ class FGZTrainer:
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
             self.dynamics_function_optimizer.step()
-            # torch.cuda.empty_cache()
+            
+            if step % 16:  # TODO: param
+                # TODO: is this okay to do?? 
+                self.agent.reset()
+                torch.cuda.empty_cache()
 
             if max_steps and step >= max_steps:
                 break

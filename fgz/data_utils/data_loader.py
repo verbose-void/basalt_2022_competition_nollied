@@ -155,7 +155,7 @@ def get_json_data(json_path: str):
     return json_data
 
 
-def trajectory_generator(video_path, json_path):
+def trajectory_generator(video_path, json_path, start_frame: int=None):
     cursor_image = cv2.imread(CURSOR_FILE, cv2.IMREAD_UNCHANGED)
     # Assume 16x16
     cursor_image = cursor_image[:16, :16, :]
@@ -173,7 +173,14 @@ def trajectory_generator(video_path, json_path):
     # and updating "hotbar.#" actions when hotbar selection changes.
     last_hotbar = 0
 
+
     json_data = get_json_data(json_path)
+
+    # if the start frame was provided, start there.
+    if start_frame is not None:
+        video.set(1, start_frame)
+        json_data = json_data[start_frame:]
+
     for i in range(len(json_data)):
         step_data = json_data[i]
 

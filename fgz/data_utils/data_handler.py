@@ -35,8 +35,8 @@ class ContiguousTrajectory:
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __iter__(self):
-        return trajectory_generator(self.video_path, self.json_path)
+    def __iter__(self, start_frame: int=None):
+        return trajectory_generator(self.video_path, self.json_path, start_frame=start_frame)
 
 
 class ContiguousTrajectoryWindow:
@@ -46,30 +46,58 @@ class ContiguousTrajectoryWindow:
         agent: MineRLAgent, 
         frames_per_window: int=4,
         allow_agent_gradients: bool = False,
+        use_random_subsection: bool = False,
+        num_strides: int = 8,
     ):
         self.trajectory = trajectory
         self.agent = agent
         self.frames_per_window = frames_per_window
         self.allow_agent_gradients = allow_agent_gradients
 
+        # TODO: explain
+        self.use_random_subsection = use_random_subsection
+        self.num_strides = num_strides  # TODO: stride length
+
+        assert self.frames_per_window > 0
+        assert self.num_strides > 0
+
+        if self.use_random_subsection:
+            required_num_frames = self.frames_per_window + self.num_strides
+            self.start = np.random.randint(low=0, high=len(self.trajectory) - required_num_frames)
+            self.end = self.start + required_num_frames
+        else:
+            self.start = 0
+            self.end = len(self.trajectory)
+
+        assert self.end > self.start
+
+    @property
+    def uid(self):
+        return self.trajectory.uid
+
     @property
     def task_id(self):
         return self.trajectory.task_id
 
+    def num_frames(self):
+        return self.end - self.start
+
     def __len__(self):
-        return len(self.trajectory)
+        return self.num_strides
 
     def __iter__(self):
-        self._iter = 0
-        self._trajectory_iterator = iter(self.trajectory)
+        self._num_returned_windows = 0
+        self._trajectory_iterator = self.trajectory.__iter__(start_frame=self.start)
         self.window = []
         return self
 
     def __next__(self, populating: bool = False):
-        is_first = self._iter == 0
-        self._iter += 1
+        if self._num_returned_windows >= self.num_strides:
+            self._trajectory_iterator = None
+            raise StopIteration
 
-        # should auto-raise StopIteration
+        is_first = self._num_returned_windows == 0 and not populating
+
         frame, action = self._trajectory_iterator.__next__()
 
         # TODO: this doesn't take into consideration batching w.r.t trajectories!
@@ -94,6 +122,7 @@ class ContiguousTrajectoryWindow:
         if len(self.window) != self.frames_per_window:
             raise ValueError(f"Unexpected window size. Got {len(self.window)}, expected: {self.frames_per_window}")
 
+        self._num_returned_windows += 1
         return self.window
 
 
@@ -140,8 +169,8 @@ class ContiguousTrajectoryDataLoader:
         # remove the trajectory and pick a new sample if it's not long enough.
         t_len = len(t)
         if t_len < self.minimum_steps:
-            warn(f"Removing trajectory from the dataset. It's length was too short ({t_len} < {self.minimum_steps}).")
             self.trajectories.pop(trajectory_index)
+            warn(f"Removing trajectory from the dataset. It's length was too short ({t_len} < {self.minimum_steps}). Now there are {len(self.trajectories)} left.")
             return self.sample()
 
         return t
@@ -169,7 +198,12 @@ class DataHandler:
     def sample_single_trajectory(self):
         task_id = np.random.randint(low=0, high=self.num_tasks)
         trajectory = self.loaders[task_id].sample()
-        return ContiguousTrajectoryWindow(trajectory, agent=self.agent, frames_per_window=self.frames_per_window)
+        return ContiguousTrajectoryWindow(
+            trajectory, 
+            agent=self.agent, 
+            frames_per_window=self.frames_per_window,
+            use_random_subsection=True,
+        )
 
 
 # class ExpertDatasetUnroller:
