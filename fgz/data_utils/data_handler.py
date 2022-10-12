@@ -142,6 +142,11 @@ class ContiguousTrajectoryDataLoader:
         for unique_id in unique_ids:
             video_path = os.path.abspath(os.path.join(self.dataset_path, unique_id + ".mp4"))
             json_path = os.path.abspath(os.path.join(self.dataset_path, unique_id + ".jsonl"))
+
+            if not os.path.exists(video_path) or not os.path.exists(json_path):
+                warn(f"Skipping {unique_id}...")
+                continue
+
             t = ContiguousTrajectory(video_path, json_path, unique_id, task_id)
             self.trajectories.append(t)
 

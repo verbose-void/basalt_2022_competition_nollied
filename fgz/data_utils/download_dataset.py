@@ -35,28 +35,33 @@ def main(args):
         url = basedir + relpath
         filename = os.path.basename(relpath)
         outpath = os.path.join(args.output_dir, filename)
+        percent_done = 100 * i / len(relpaths)
 
         if os.path.exists(outpath):
             print(f"already downloaded {outpath}")
             continue
-
-        percent_done = 100 * i / len(relpaths)
-        print(f"[{percent_done:.0f}%] Downloading {outpath}")
-        try:
-            urllib.request.urlretrieve(url, outpath)
-        except Exception as e:
-            print(f"\tError downloading {url}: {e}. Moving on")
-            continue
+        else:
+            print(f"[{percent_done:.0f}%] Downloading {outpath}")
+            try:
+                urllib.request.urlretrieve(url, outpath)
+            except Exception as e:
+                print(f"\tError downloading {url}: {e}. Moving on")
+                continue
 
         # Also download corresponding .jsonl file
         jsonl_url = url.replace(".mp4", ".jsonl")
         jsonl_filename = filename.replace(".mp4", ".jsonl")
         jsonl_outpath = os.path.join(args.output_dir, jsonl_filename)
-        try:
-            urllib.request.urlretrieve(jsonl_url, jsonl_outpath)
-        except Exception as e:
-            print(f"\tError downloading {jsonl_url}: {e}. Cleaning up mp4")
-            os.remove(outpath)
+
+        if os.path.exists(jsonl_outpath):
+            print(f"already downloaded {jsonl_outpath}")
+            continue
+        else:
+            try:
+                urllib.request.urlretrieve(jsonl_url, jsonl_outpath)
+            except Exception as e:
+                print(f"\tError downloading {jsonl_url}: {e}. Cleaning up mp4")
+                os.remove(outpath)
 
 
 if __name__ == "__main__":
