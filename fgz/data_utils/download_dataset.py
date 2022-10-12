@@ -35,6 +35,11 @@ def main(args):
         url = basedir + relpath
         filename = os.path.basename(relpath)
         outpath = os.path.join(args.output_dir, filename)
+
+        if os.path.exists(outpath):
+            print(f"already downloaded {outpath}")
+            continue
+
         percent_done = 100 * i / len(relpaths)
         print(f"[{percent_done:.0f}%] Downloading {outpath}")
         try:
