@@ -19,8 +19,8 @@ TASKS = [
 # ENABLED_TASKS = [0, 1, 2, 3]  # all 4 tasks.
 ENABLED_TASKS = [3]  # waterfall only.
 
-NUM_WALKERS = 256
-UNROLL_STEPS = 16
+NUM_WALKERS = 32
+UNROLL_STEPS = 4
 
 FMC_LOGIT = len(ENABLED_TASKS)  # the last logit is dedicated to FMC
 NUM_DISCRIMINATOR_CLASSES = len(ENABLED_TASKS) + 1
