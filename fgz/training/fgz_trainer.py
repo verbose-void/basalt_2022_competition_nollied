@@ -14,22 +14,8 @@ from vpt.agent import MineRLAgent
 from fgz.architecture.dynamics_function import DynamicsFunction
 
 from fgz.data_utils.data_handler import DataHandler
+from constants import MINERL_ENV_TO_TASK_LOGIT, TASKS, FMC_LOGIT
 
-
-# TODO: move to train script
-FMC_LOGIT = 4
-TASK_ALIASES = {
-    0: "BuildHouse",
-    1: "AnimalPen",
-    2: "FindCave",
-    3: "BuildWaterfall",
-}
-MINERL_ENV_TO_TASK_LOGIT = {
-    "MineRLBasaltBuildVillageHouse-v0": 0,
-    "MineRLBasaltCreateVillageAnimalPen-v0": 1,
-    "MineRLBasaltFindCave-v0": 2,
-    "MineRLBasaltMakeWaterfall-v0": 3,
-}
 
 
 class FGZTrainer:
@@ -146,7 +132,7 @@ class FGZTrainer:
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
 
         # TODO: move somewhere else
-        task_name = TASK_ALIASES[self.current_trajectory_window.task_id]
+        task_name = TASKS[self.current_trajectory_window.task_id]["name"]
         uid = self.current_trajectory_window.uid[-8:]
         start_frame = self.current_trajectory_window.start
         end_frame = self.current_trajectory_window.end
@@ -261,6 +247,7 @@ class FGZTrainer:
         self.current_trajectory_window = current_trajectory_window
         self.agent = agent
         self.data_handler = data_handler
+        self.data_handler.agent = agent
 
     @staticmethod
     def load(path: str, agent: MineRLAgent):
