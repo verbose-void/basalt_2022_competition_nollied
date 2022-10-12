@@ -139,10 +139,12 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         # and minimize all of the others.
         if self.apply_softmax_before_reward:
             soft_logits = F.softmax(discrim_logits, dim=-1)
-            soft_confusions = 1-soft_logits[:, self.target_discriminator_logit]
+            # soft_confusions = 1-soft_logits[:, self.target_discriminator_logit]
+            soft_confusions = soft_logits[:, self.target_discriminator_logit]
             rewards = torch.where(freeze_mask, 0, soft_confusions)
         else:
-            target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
+            # target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
+            target_discrim_class_confusions = discrim_logits[:, self.target_discriminator_logit]
             rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
 
         obs = self.states
