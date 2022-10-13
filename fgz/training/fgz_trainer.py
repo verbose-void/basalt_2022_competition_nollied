@@ -14,7 +14,7 @@ from vpt.agent import MineRLAgent
 from fgz.architecture.dynamics_function import DynamicsFunction
 
 from fgz.data_utils.data_handler import DataHandler
-from constants import MINERL_ENV_TO_TASK_LOGIT, TASKS, FMC_LOGIT
+from fgz_config import FGZConfig, TASKS
 
 
 
@@ -26,8 +26,7 @@ class FGZTrainer:
         fmc: FMC,
         data_handler: DataHandler,
         dynamics_function_optimizer: torch.optim.Optimizer,
-        unroll_steps: int=8,
-        use_wandb: bool = False,
+        config: FGZConfig,
     ):
         self.agent = agent
         self.data_handler = data_handler
@@ -39,8 +38,7 @@ class FGZTrainer:
         #     discriminator_classes=2,
         # )
         self.fmc = fmc
-        self.unroll_steps = unroll_steps
-        self.use_wandb = use_wandb
+        self.config = config
 
         self.dynamics_function_optimizer = dynamics_function_optimizer
 
@@ -58,7 +56,7 @@ class FGZTrainer:
         self.fmc.vec_env.set_all_states(root_embedding.squeeze())
         self.fmc.reset()
 
-        self.fmc.simulate(self.unroll_steps)
+        self.fmc.simulate(self.config.unroll_steps)
 
         self.tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
         observations, actions, _, confusions, infos = self.tree_sampler.get_batch()
@@ -81,7 +79,7 @@ class FGZTrainer:
         # TODO: explain
         discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
         discrim_logits = torch.cat(discrim_logits)
-        fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * FMC_LOGIT
+        fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.config.fmc_logit
 
         # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
         # fmc_confusions = torch.cat(fmc_confusions)
@@ -143,13 +141,13 @@ class FGZTrainer:
         for step, full_window in enumerate(it):
             self.dynamics_function_optimizer.zero_grad()
             
-            fmc_loss = self.get_fmc_loss(full_window) / 4  # NOTE: divide by 4 to equalize the loss with the expert dataset.
+            fmc_loss = self.get_fmc_loss(full_window)
             expert_loss = self.get_expert_loss(full_window)
             loss = (fmc_loss + expert_loss) / 2
 
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
 
-            if self.use_wandb and wandb.run:
+            if self.config.use_wandb and wandb.run:
                 wandb.log({
                     "train/fmc_loss": fmc_loss,
                     "train/expert_loss": expert_loss,
@@ -188,7 +186,7 @@ class FGZTrainer:
 
     @torch.no_grad()
     def evaluate(self, minerl_environment_id: str, render: bool=False, max_steps: int=None, force_no_escape: bool = False):
-        target_logit = MINERL_ENV_TO_TASK_LOGIT[minerl_environment_id]
+        target_logit = self.config.environment_id_to_task_logit[minerl_environment_id]
 
         env = gym.make(minerl_environment_id)
         obs = env.reset()
@@ -204,7 +202,7 @@ class FGZTrainer:
             embedding = self.agent.forward_observation(obs, return_embedding=True)
             self.fmc.vec_env.set_all_states(embedding.squeeze())
             self.fmc.reset()
-            self.fmc.simulate(self.unroll_steps)
+            self.fmc.simulate(self.config.unroll_steps)
 
             # get best FMC action
             path = self.fmc.tree.best_path

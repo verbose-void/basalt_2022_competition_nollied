@@ -13,38 +13,38 @@ from fgz.architecture.dynamics_function import DynamicsFunction, MineRLDynamicsE
 from fgz.training.fgz_trainer import FGZTrainer
 from fgz.data_utils.data_handler import DataHandler
 from vpt.run_agent import load_agent
-from constants import *
+from fgz_config import FGZConfig
 
 coloredlogs.install(logging.DEBUG)
 
 
-def get_agent():
-    print("Loading model", PRETRAINED_AGENT_MODEL_FILE)
-    print("with weights", PRETRAINED_AGENT_WEIGHTS_FILE)
-    return load_agent(PRETRAINED_AGENT_MODEL_FILE, PRETRAINED_AGENT_WEIGHTS_FILE)
+def get_agent(config: FGZConfig):
+    print("Loading model", config.model_filename)
+    print("with weights", config.weights_filename)
+    return load_agent(config.model_path, config.weights_path)
 
 
-def get_dynamics_function():
+def get_dynamics_function(config: FGZConfig):
     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
-        discriminator_classes=NUM_DISCRIMINATOR_CLASSES,
+        discriminator_classes=config.num_discriminator_classes,
         embedder_layers=16,
         button_features=128,
         camera_features=32,
     )
 
 
-def get_dynamics_environment(minerl_env: gym.Env) -> MineRLDynamicsEnvironment:
-    dynamics_function = get_dynamics_function()
+def get_dynamics_environment(config: FGZConfig) -> MineRLDynamicsEnvironment:
+    dynamics_function = get_dynamics_function(config)
     return MineRLDynamicsEnvironment(
-        minerl_env.action_space, 
+        config.action_space, 
         dynamics_function=dynamics_function,
-        n=NUM_WALKERS,
+        n=config.num_walkers,
     )
 
 
-def get_data_handler(agent):
-    return DataHandler(DATASET_PATHS, agent=agent, frames_per_window=UNROLL_STEPS)
+def get_data_handler(config: FGZConfig, agent):
+    return DataHandler(config.dataset_paths, agent=agent, frames_per_window=config.unroll_steps)
 
 
 def main():
@@ -54,11 +54,13 @@ def main():
     All trained models should be placed under "train" directory!
     """
 
+    config = FGZConfig(use_wandb=False)
+
     minerl_env = gym.make('MineRLBasaltFindCave-v0')
-    agent = get_agent()
-    dynamics_env = get_dynamics_environment(minerl_env)
+    agent = get_agent(config)
+    dynamics_env = get_dynamics_environment(config)
     fmc = FMC(dynamics_env)
-    trainer = FGZTrainer(minerl_env, agent, fmc, unroll_steps=UNROLL_STEPS)
+    trainer = FGZTrainer(minerl_env, agent, fmc, config=config)
 
     # For an example, lets just run 100 steps of the environment for training
     # obs = env.reset()
