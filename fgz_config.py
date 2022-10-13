@@ -1,5 +1,5 @@
 import minerl
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from typing import List
 import gym
@@ -32,7 +32,13 @@ class FGZConfig:
     # enable tasks according to the indices of the `TASKS` list. 0="BuildHouse", etc.
     # ordering of these tasks determines the ordering of the responsibility of the discriminator logits.
     # ENABLED_TASKS = [0, 1, 2, 3]  # all 4 tasks.
-    enabled_tasks = [3]  # waterfall only.
+
+    
+    enabled_tasks: List[int] = field(default_factory=lambda: [3])  # waterfall only.
+
+    # when this is true, FMC will not be run and the discriminator will only try to discriminate between
+    # the enabled tasks.
+    disable_fmc_detection: bool = False
 
     num_walkers: int = 128
     unroll_steps: int = 8

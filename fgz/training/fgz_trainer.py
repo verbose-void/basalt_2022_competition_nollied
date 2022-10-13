@@ -28,6 +28,11 @@ class FGZTrainer:
         dynamics_function_optimizer: torch.optim.Optimizer,
         config: FGZConfig,
     ):
+        if config.disable_fmc_detection:
+            assert len(config.enabled_tasks) >= 2
+        else:
+            assert len(config.enabled_tasks) >= 1
+
         self.agent = agent
         self.data_handler = data_handler
         self.current_trajectory_window = None
@@ -112,6 +117,13 @@ class FGZTrainer:
             loss += F.cross_entropy(logits, target_logit)
         return loss / self.fmc_steps_taken
 
+    def _get_tqdm_description(self) -> str:
+        task_name = TASKS[self.current_trajectory_window.task_id]["name"]
+        uid = self.current_trajectory_window.uid[-8:]
+        start_frame = self.current_trajectory_window.start
+        end_frame = self.current_trajectory_window.end
+        return f"Training on {task_name}({uid})[{start_frame}:{end_frame}]"
+
     def train_sub_trajectory(self, use_tqdm: bool=False, max_steps: int = None):
         """
         2 trajectories are gathered:
@@ -124,28 +136,31 @@ class FGZTrainer:
         resulting from exploiting the discriminator's confusion.
         """
 
+        if self.config.disable_fmc_detection:
+            self.fmc_steps_taken = self.config.unroll_steps
+            self.fmc_confusions = np.zeros(1)
+
         # reset the hidden state of the agent, so we don't carry over any context from
         # the previous trajectory.
         self.agent.reset()
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
 
-        # TODO: move somewhere else
-        task_name = TASKS[self.current_trajectory_window.task_id]["name"]
-        uid = self.current_trajectory_window.uid[-8:]
-        start_frame = self.current_trajectory_window.start
-        end_frame = self.current_trajectory_window.end
-        desc = f"Training on {task_name}({uid})[{start_frame}:{end_frame}]"
-        
+        desc = self._get_tqdm_description()        
         it = tqdm(self.current_trajectory_window, desc=desc, disable=not use_tqdm, total=max_steps)
-        # total_loss = 0.0
+        
         for step, full_window in enumerate(it):
-            self.dynamics_function_optimizer.zero_grad()
-            
-            fmc_loss = self.get_fmc_loss(full_window)
-            expert_loss = self.get_expert_loss(full_window)
-            loss = (fmc_loss + expert_loss) / 2
-
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
+
+            self.dynamics_function_optimizer.zero_grad()
+
+            expert_loss = self.get_expert_loss(full_window)
+            
+            if self.config.disable_fmc_detection:
+                fmc_loss = 0.0
+            else:
+                fmc_loss = self.get_fmc_loss(full_window)
+
+            loss = expert_loss + fmc_loss
 
             if self.config.use_wandb and wandb.run:
                 wandb.log({
@@ -159,13 +174,6 @@ class FGZTrainer:
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
             loss.backward()
             self.dynamics_function_optimizer.step()
-            
-            # if step % 16:  # TODO: param
-            #     # TODO: is this okay to do?? 
-            #     self.agent.reset()
-            #     torch.cuda.empty_cache()
-
-            # total_loss += loss
 
             if max_steps and step >= max_steps:
                 break
