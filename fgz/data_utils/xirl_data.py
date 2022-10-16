@@ -40,11 +40,4 @@ class XIRLDataHandler:
             # try again if they're the same.
             return self.sample_pair()
 
-        self.embedded_t0 = self.embed_trajectory(t0)
-        self.embedded_t1 = self.embed_trajectory(t1)
-        return self.embedded_t0, self.embedded_t1
-
-    def get_nbytes_stored(self):
-        nbytes0 = sum([e.nelement() * e.element_size() for e in self.embedded_t0])
-        nbytes1 = sum([e.nelement() * e.element_size() for e in self.embedded_t1])
-        return nbytes0 + nbytes1
+        return self.embed_trajectory(t0), self.embed_trajectory(t1)

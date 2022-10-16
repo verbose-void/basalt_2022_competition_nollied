@@ -19,5 +19,13 @@ class XIRLTrainer:
         self.data_handler = XIRLDataHandler(dataset_path, self.agent, self.dynamics_function)
 
     def train_on_pair(self):
-        t0, t1 = self.data_handler.sample_pair()
-        print("bytes for the pair of trajectories:", self.data_handler.get_nbytes_stored())
+        self.t0, self.t1 = self.data_handler.sample_pair()
+        print("bytes for the pair of trajectories:", self.get_nbytes_stored())
+
+        # TODO: cycle consistency loss + train
+
+    def get_nbytes_stored(self):
+        nbytes0 = sum([e.nelement() * e.element_size() for e in self.t0])
+        nbytes1 = sum([e.nelement() * e.element_size() for e in self.t1])
+        return nbytes0 + nbytes1
+
