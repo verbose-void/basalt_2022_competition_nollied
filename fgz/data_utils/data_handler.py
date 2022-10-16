@@ -19,7 +19,7 @@ class ContiguousTrajectory:
     For a window/batch, use `ContiguousTrajectoryWindow`.
     """
 
-    def __init__(self, video_path: str, json_path: str, uid: str, task_id: int):
+    def __init__(self, video_path: str, json_path: str, uid: str, task_id: int=None):
         self.video_path = video_path
         self.json_path = json_path
         self.uid = uid
@@ -127,7 +127,7 @@ class ContiguousTrajectoryWindow:
 
 
 class ContiguousTrajectoryDataLoader:
-    def __init__(self, dataset_path: str, task_id: int, minimum_steps: int=64):
+    def __init__(self, dataset_path: str, task_id: int=None, minimum_steps: int=64):
         self.dataset_path = dataset_path
         self.task_id = task_id
         self.minimum_steps = minimum_steps

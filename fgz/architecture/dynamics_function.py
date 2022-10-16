@@ -75,7 +75,7 @@ class DynamicsFunction(torch.nn.Module):
     def dummy_initial_state(self):
         return torch.zeros(self.state_embedding_size, dtype=float, requires_grad=True)
 
-    def forward(self, state_embedding, buttons_vector, camera_vector):
+    def forward(self, state_embedding, buttons_vector, camera_vector, use_discrim: bool = True):
         assert state_embedding.dim() <= 2 and state_embedding.shape[-1] == self.state_embedding_size, str(state_embedding.shape)
 
         button_embedding = self.button_embedder.forward(buttons_vector)
@@ -84,15 +84,18 @@ class DynamicsFunction(torch.nn.Module):
         concat_state = torch.cat((state_embedding, button_embedding, camera_embedding), dim=-1)
         new_state = self.embedder.forward(concat_state)
 
+        if not use_discrim:
+            return new_state
+
         # TODO: residual from old state embedding to new?
         discriminator_logits = self.discriminator_head(new_state)
 
         return new_state, discriminator_logits
 
-    def forward_action(self, state_embedding, action):
+    def forward_action(self, state_embedding, action, use_discrim: bool = True):
         button_vec, camera_vec = vectorize_minerl_action(action)
         # TODO: handle GPU
-        return self.forward(state_embedding.cpu(), button_vec.unsqueeze(0), camera_vec.unsqueeze(0))
+        return self.forward(state_embedding.cpu(), button_vec.unsqueeze(0), camera_vec.unsqueeze(0), use_discrim=use_discrim)
 
 
 class MineRLDynamicsEnvironment(VectorizedEnvironment):
