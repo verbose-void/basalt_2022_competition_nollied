@@ -46,17 +46,18 @@ class XIRLTrainer:
 
         return torch.matmul(alpha_k, other_embeddings)
 
-    def train_on_pair(self, num_frames: int=20):
+    def train_on_pair(self, num_frame_samples: int=20):
         self.t0, self.t1 = self.data_handler.sample_pair()
         # self.t0 = torch.ones((10, 5))
         # self.t1 = torch.ones((10, 5))
+
         print("bytes for the pair of trajectories:", self.get_nbytes_stored())
 
         self.dynamics_function.train()
         self.optimizer.zero_grad()
 
         total_loss = 0
-        for _ in range(num_frames):
+        for _ in range(num_frame_samples):
 
             # pick random frame in t0
             chosen_frame_index = torch.randint(low=0, high=len(self.t0), size=(1,)).item()
@@ -67,14 +68,20 @@ class XIRLTrainer:
             beta = self.soft_nearest_neighbor(v_squiggly, self.t0, return_similarity_vector=True)
 
             # TODO: vectorize
-            mu = torch.matmul(torch.arange(start=1, end=len(beta) + 1, dtype=float).float(), beta)
+            frame_mult = torch.arange(start=1, end=len(beta) + 1, dtype=float).float() / len(beta)
+            mu = torch.matmul(frame_mult, beta)
 
-            loss = (mu - chosen_frame_index) ** 2
+            # divide both by total num frames to make indices in more reasonable range
+            # mu /= total_frames
+            t = chosen_frame_index / len(beta)
+            print(mu, t, len(beta))
+
+            loss = ((mu - t) ** 2) / len(beta)
 
             print(loss.item())
             total_loss += loss
 
-        loss = total_loss / num_frames
+        loss = total_loss / num_frame_samples
         print("avg loss", loss.item())
         loss.backward()
         self.optimizer.step()
