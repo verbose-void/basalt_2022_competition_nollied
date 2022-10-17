@@ -46,7 +46,7 @@ class XIRLTrainer:
 
         return torch.matmul(alpha_k, other_embeddings)
 
-    def train_on_pair(self, num_frames: int=20, regularization_weight: float=0.001):
+    def train_on_pair(self, num_frames: int=20):
         self.t0, self.t1 = self.data_handler.sample_pair()
         # self.t0 = torch.ones((10, 5))
         # self.t1 = torch.ones((10, 5))
@@ -67,19 +67,12 @@ class XIRLTrainer:
             beta = self.soft_nearest_neighbor(v_squiggly, self.t0, return_similarity_vector=True)
 
             # TODO: vectorize
-            mu = 0
-            for i, beta_k in enumerate(beta):
-                mu += beta_k * (i + 1)  # NOTE: i think + 1.
+            mu = torch.matmul(torch.arange(start=1, end=len(beta) + 1, dtype=float).float(), beta)
 
-            variance = 0
-            for i, beta_k in enumerate(beta):
-                variance += beta_k * ((i + 1 - mu) ** 2)  # NOTE: i think + 1.
+            loss = (mu - chosen_frame_index) ** 2
 
-            loss = (torch.abs(chosen_frame_index - mu) ** 2) / variance
-            std = torch.sqrt(variance)  # paper calls this variance, even though it's standard deviation.
-            reg_term = regularization_weight * torch.log(std)
-            total_loss += loss + reg_term
-            print("loss + reg", loss.item(), reg_term.item())
+            print(loss.item())
+            total_loss += loss
 
         loss = total_loss / num_frames
         print("avg loss", loss.item())
