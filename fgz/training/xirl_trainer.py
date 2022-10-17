@@ -14,11 +14,19 @@ import torch
 # @ray.remote
 class XIRLTrainer:
 
-    def __init__(self, dataset_path: str, model_path: str, weights_path: str):
+    def __init__(
+        self, 
+        dataset_path: str, 
+        model_path: str, 
+        weights_path: str
+    ):
+
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
         self.agent = load_agent(model_path, weights_path)
 
         self.dynamics_function = DynamicsFunction(embedder_layers=2)
+
+        self.optimizer = torch.optim.Adam(self.dynamics_function.parameters(), lr=0.01)
 
         self.data_handler = XIRLDataHandler(dataset_path, self.agent, self.dynamics_function)
 
@@ -44,7 +52,12 @@ class XIRLTrainer:
         # self.t1 = torch.ones((10, 5))
         print("bytes for the pair of trajectories:", self.get_nbytes_stored())
 
+        self.dynamics_function.train()
+        self.optimizer.zero_grad()
+
+        total_loss = 0
         for _ in range(num_frames):
+
             # pick random frame in t0
             chosen_frame_index = torch.randint(low=0, high=len(self.t0), size=(1,)).item()
             ui = self.t0[chosen_frame_index]
@@ -65,13 +78,13 @@ class XIRLTrainer:
             loss = (torch.abs(chosen_frame_index - mu) ** 2) / variance
             std = torch.sqrt(variance)  # paper calls this variance, even though it's standard deviation.
             reg_term = regularization_weight * torch.log(std)
+            total_loss += loss + reg_term
+            print("loss + reg", loss.item(), reg_term.item())
 
-            loss += reg_term
-
-            print(loss)
-            loss.backward()
-
-        # TODO: cycle consistency loss + train
+        loss = total_loss / num_frames
+        print("avg loss", loss.item())
+        loss.backward()
+        self.optimizer.step()
 
     def get_nbytes_stored(self):
         nbytes0 = sum([e.nelement() * e.element_size() for e in self.t0])
