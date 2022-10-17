@@ -27,10 +27,10 @@ class XIRLDataHandler:
 
             # TODO: maybe make use of the contiguous window and unroll steps?
             embedding = self.dynamics_function.forward_action(agent_embedding, action, use_discrim=False)
-            embeddings.append(embedding)
+            embeddings.append(embedding.flatten().float())
 
         # assert len(embeddings) == len(trajectory), f"Got {len(embeddings)}, {len(trajectory)}"
-        return embeddings
+        return torch.stack(embeddings)
 
     def sample_pair(self):
         t0 = self.trajectory_loader.sample()

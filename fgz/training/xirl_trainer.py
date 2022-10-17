@@ -26,39 +26,50 @@ class XIRLTrainer:
         # TODO: optimize this!
         soft_v = 0
 
-        similarity_vector = torch.zeros(size=(len(other_embeddings),), dtype=float)
+        # similarity_vector = torch.zeros(size=(len(other_embeddings),), dtype=float)
 
-        for j, vj in enumerate(other_embeddings):
-            # first, we calculate the divisor of equation 1.
-            divisor = 0
-            for vk in other_embeddings:
-                divisor += torch.exp(-torch.norm(frame_embedding - vk))
-            numerator = torch.exp(-torch.norm(frame_embedding - vj))
-            alpha_j = numerator / divisor
+        expanded_frame_embedding = frame_embedding.unsqueeze(0).expand(len(other_embeddings), -1)
 
-            if return_similarity_vector:
-                similarity_vector[j] = alpha_j
-            else:
-                soft_v += alpha_j * vj
-        
+        exp_norm = torch.exp(-torch.norm(expanded_frame_embedding - other_embeddings, dim=1))
+        alpha_k = exp_norm / exp_norm.sum()
+
         if return_similarity_vector:
-            return similarity_vector
-        return soft_v
+            return alpha_k
 
-    def train_on_pair(self, num_frames: int=20):
+        return torch.matmul(alpha_k, other_embeddings)
+
+    def train_on_pair(self, num_frames: int=20, regularization_weight: float=0.001):
         self.t0, self.t1 = self.data_handler.sample_pair()
+        # self.t0 = torch.ones((10, 5))
+        # self.t1 = torch.ones((10, 5))
         print("bytes for the pair of trajectories:", self.get_nbytes_stored())
 
         for _ in range(num_frames):
             # pick random frame in t0
-            i = torch.randint(low=0, high=len(self.t0), size=(1,)).item()
-            ui = self.t0[i]
+            chosen_frame_index = torch.randint(low=0, high=len(self.t0), size=(1,)).item()
+            ui = self.t0[chosen_frame_index]
 
             # calculate cycle MSE loss
             v_squiggly = self.soft_nearest_neighbor(ui, self.t1, return_similarity_vector=False)
             beta = self.soft_nearest_neighbor(v_squiggly, self.t0, return_similarity_vector=True)
 
-            print(beta)
+            # TODO: vectorize
+            mu = 0
+            for i, beta_k in enumerate(beta):
+                mu += beta_k * (i + 1)  # NOTE: i think + 1.
+
+            variance = 0
+            for i, beta_k in enumerate(beta):
+                variance += beta_k * ((i + 1 - mu) ** 2)  # NOTE: i think + 1.
+
+            loss = (torch.abs(chosen_frame_index - mu) ** 2) / variance
+            std = torch.sqrt(variance)  # paper calls this variance, even though it's standard deviation.
+            reg_term = regularization_weight * torch.log(std)
+
+            loss += reg_term
+
+            print(loss)
+            loss.backward()
 
         # TODO: cycle consistency loss + train
 
