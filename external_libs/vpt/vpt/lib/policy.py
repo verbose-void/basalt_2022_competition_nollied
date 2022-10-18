@@ -5,7 +5,7 @@ from typing import Dict, Optional
 import numpy as np
 import torch as th
 from gym3.types import DictType
-from torch import nn
+from torch import embedding, nn
 from torch.nn import functional as F
 
 from vpt.lib.action_head import make_action_head
@@ -190,7 +190,7 @@ class MinecraftPolicy(nn.Module):
     def output_latent_size(self):
         return self.hidsize
 
-    def forward(self, ob, state_in, context):
+    def forward(self, ob, state_in, context, last_action=None):
         first = context["first"]
 
         x = self.img_preprocess(ob["img"])
@@ -204,6 +204,9 @@ class MinecraftPolicy(nn.Module):
             x = self.pre_lstm_ln(x)
 
         if self.recurrent_layer is not None:
+            if last_action is not None:
+                raise NotImplementedError("TODO! handle the last action being passed along")
+
             x, state_out = self.recurrent_layer(x, first, state_in)
         else:
             state_out = state_in
@@ -249,7 +252,7 @@ class MinecraftAgentPolicy(nn.Module):
         self.pi_head.reset_parameters()
         self.value_head.reset_parameters()
 
-    def forward(self, obs, first: th.Tensor, state_in):
+    def forward(self, obs, first: th.Tensor, state_in, return_embedding=False, last_action=None):
         if isinstance(obs, dict):
             # We don't want to mutate the obs input.
             obs = obs.copy()
@@ -261,7 +264,10 @@ class MinecraftAgentPolicy(nn.Module):
         else:
             mask = None
 
-        (pi_h, v_h), state_out = self.net(obs, state_in, context={"first": first})
+        (pi_h, v_h), state_out = self.net(obs, state_in, context={"first": first}, last_action=last_action)
+
+        if return_embedding:
+            return pi_h, state_out
 
         pi_logits = self.pi_head(pi_h, mask=mask)
         vpred = self.value_head(v_h)
@@ -284,7 +290,7 @@ class MinecraftAgentPolicy(nn.Module):
         """
         return self.pi_head.kl_divergence(pd1, pd2)
 
-    def get_output_for_observation(self, obs, state_in, first):
+    def get_output_for_observation(self, obs, state_in, first, return_embedding=False):
         """
         Return gradient-enabled outputs for given observation.
 
@@ -300,8 +306,12 @@ class MinecraftAgentPolicy(nn.Module):
         obs = tree_map(lambda x: x.unsqueeze(1), obs)
         first = first.unsqueeze(1)
 
-        (pd, vpred, _), state_out = self(obs=obs, first=first, state_in=state_in)
+        ret = self(obs=obs, first=first, state_in=state_in, return_embedding=return_embedding)
+        if return_embedding:
+            embedding, state_out = ret
+            return embedding, state_out
 
+        (pd, vpred, _), state_out = ret
         return pd, self.value_head.denormalize(vpred)[:, 0], state_out
 
     @th.no_grad()

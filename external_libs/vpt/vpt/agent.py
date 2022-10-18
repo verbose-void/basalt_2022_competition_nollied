@@ -1,3 +1,4 @@
+from re import S
 import numpy as np
 import torch as th
 import cv2
@@ -104,9 +105,7 @@ def resize_image(img, target_resolution):
 
 
 class MineRLAgent:
-    def __init__(self, env, device=None, policy_kwargs=None, pi_head_kwargs=None):
-        validate_env(env)
-
+    def __init__(self, device=None, policy_kwargs=None, pi_head_kwargs=None):
         if device is None:
             device = default_device_type()
         self.device = th.device(device)
@@ -126,7 +125,7 @@ class MineRLAgent:
         agent_kwargs = dict(policy_kwargs=policy_kwargs, pi_head_kwargs=pi_head_kwargs, action_space=action_space)
 
         self.policy = MinecraftAgentPolicy(**agent_kwargs).to(device)
-        self.hidden_state = self.policy.initial_state(1)
+        self.reset()
         self._dummy_first = th.from_numpy(np.array((False,))).to(device)
 
     def load_weights(self, path):
@@ -204,3 +203,18 @@ class MineRLAgent:
         )
         minerl_action = self._agent_action_to_env(agent_action)
         return minerl_action
+
+    def forward_observation(self, minerl_obs, return_embedding: bool = False):
+        # The "first" argument could be used to reset tell episode
+        # boundaries, but we are only using this for predicting (for now),
+        # so we do not hassle with it yet.  <--- TODO (DYLLAN ADDRESS THIS!)
+
+        agent_input = self._env_obs_to_agent(minerl_obs)
+        ret = self.policy.get_output_for_observation(agent_input, self.hidden_state, self._dummy_first, return_embedding=return_embedding)
+        if return_embedding:
+            embedding, state_out = ret
+            self.hidden_state = state_out  # TODO: should we do this?
+            return embedding
+
+        pd, v, state_out = ret
+        return pd, v
