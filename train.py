@@ -28,9 +28,9 @@ def get_dynamics_function(config: FGZConfig):
     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
         discriminator_classes=config.num_discriminator_classes,
-        embedder_layers=16,
+        embedder_layers=4,
         button_features=128,
-        camera_features=32,
+        camera_features=128,
     )
 
 

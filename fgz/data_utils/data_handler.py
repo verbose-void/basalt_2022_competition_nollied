@@ -200,14 +200,14 @@ class DataHandler:
         # TODO: maybe sample more than 1 per task
         return [loader.sample() for loader in self.loaders]
 
-    def sample_single_trajectory(self):
+    def sample_single_trajectory(self, num_strides: int=4):
         task_id = np.random.randint(low=0, high=self.num_tasks)
         trajectory = self.loaders[task_id].sample()
         return ContiguousTrajectoryWindow(
             trajectory, 
             agent=self.agent, 
             frames_per_window=self.frames_per_window,
-            num_strides=1,
+            num_strides=num_strides,
             use_random_subsection=True,
         )
 

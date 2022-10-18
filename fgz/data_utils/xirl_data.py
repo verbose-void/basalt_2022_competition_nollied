@@ -13,13 +13,14 @@ class XIRLDataHandler:
         self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path)
         self.dynamics_function = dynamics_function
 
-    def embed_trajectory(self, trajectory: ContiguousTrajectory):
+    def embed_trajectory(self, trajectory: ContiguousTrajectory, max_frames: int=None):
         # reset hidden state.
         self.agent.reset()
 
         embeddings = []
+        actions = []
 
-        for frame, action in trajectory:
+        for i, (frame, action) in enumerate(trajectory):
             obs = {"pov": frame}
 
             with torch.no_grad():
@@ -28,11 +29,15 @@ class XIRLDataHandler:
             # TODO: maybe make use of the contiguous window and unroll steps?
             embedding = self.dynamics_function.forward_action(agent_embedding, action, use_discrim=False)
             embeddings.append(embedding.flatten().float())
+            actions.append(action)
+
+            if max_frames is not None and i >= max_frames:
+                break
 
         # assert len(embeddings) == len(trajectory), f"Got {len(embeddings)}, {len(trajectory)}"
-        return torch.stack(embeddings)
+        return torch.stack(embeddings), actions
 
-    def sample_pair(self):
+    def sample_pair(self, max_frames: int=None):
         t0 = self.trajectory_loader.sample()
         t1 = self.trajectory_loader.sample()
 
@@ -40,4 +45,4 @@ class XIRLDataHandler:
             # try again if they're the same.
             return self.sample_pair()
 
-        return self.embed_trajectory(t0), self.embed_trajectory(t1)
+        return self.embed_trajectory(t0, max_frames=max_frames), self.embed_trajectory(t1, max_frames=max_frames)

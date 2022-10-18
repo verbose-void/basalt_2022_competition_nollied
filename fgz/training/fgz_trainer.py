@@ -110,11 +110,28 @@ class FGZTrainer:
         embedding = root_embedding.squeeze(0)
         loss = 0.0
 
+        self.expert_consistency_loss = 0.0
+
         # make sure we unroll to the length of FMC
+        c = 0
         for i in range(self.fmc_steps_taken):
             _, _, action = full_window[i]
             embedding, logits = dynamics.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
+
+            # squared error (later it's averaged so MSE.)
+            if i < len(full_window) - 1:
+                _, expected_embedding, _ = full_window[i + 1]  # use next embedding
+                self.expert_consistency_loss += torch.sum((embedding - expected_embedding) ** 2)
+                c += 1
+        
+        self.expert_consistency_loss /= c
+
+        # preds = discrim_logits.argmax(1)
+        # correct = (preds == fmc_discriminator_targets)
+        # percent = correct.sum() / len(correct)
+        # print("accuracy", percent)
+
         return loss / self.fmc_steps_taken
 
     def _get_tqdm_description(self) -> str:
@@ -147,6 +164,9 @@ class FGZTrainer:
 
         desc = self._get_tqdm_description()        
         it = tqdm(self.current_trajectory_window, desc=desc, disable=not use_tqdm, total=max_steps)
+
+        total_loss = 0.0
+        total_consistency_loss = 0.0
         
         for step, full_window in enumerate(it):
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
@@ -162,25 +182,37 @@ class FGZTrainer:
 
             loss = expert_loss + fmc_loss
 
-            if self.config.use_wandb and wandb.run:
-                wandb.log({
-                    "train/fmc_loss": fmc_loss,
-                    "train/expert_loss": expert_loss,
-                    "train/loss": loss,
-                    "fmc/steps_taken": self.fmc_steps_taken,
-                    "fmc/average_confusion_reward": self.fmc_confusions.mean(),
-                })
-
             # TODO: should we backprop after the full trajectory's losses have been calculated? or should we do it each window?
-            loss.backward()
-            self.dynamics_function_optimizer.step()
+            # loss.backward()
+            # self.dynamics_function_optimizer.step()
+            total_loss += loss
+            total_consistency_loss += self.expert_consistency_loss
 
             if max_steps and step >= max_steps:
                 break
 
-        # total_loss /= step
-        # total_loss.backward()
-        # self.dynamics_function_optimizer.step()
+        total_loss /= step + 1
+        total_consistency_loss /= step + 1
+        total_consistency_loss *= 0.001
+
+        classification_loss = total_loss
+        total_loss += total_consistency_loss
+
+        if self.config.use_wandb and wandb.run:
+            wandb.log({
+                # "train/fmc_loss": fmc_loss,
+                # "train/expert_loss": expert_loss,
+                "train/total_loss": total_loss,
+                "train/expert_consistency_loss": total_consistency_loss,
+                "train/classification_loss": classification_loss,
+                # "fmc/steps_taken": self.fmc_steps_taken,
+                # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
+            })
+            
+        print("loss:", total_loss.item(), "classification_loss:", classification_loss.item(), "consistency loss:", total_consistency_loss.item())
+
+        total_loss.backward()
+        self.dynamics_function_optimizer.step()
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
