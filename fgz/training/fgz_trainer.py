@@ -119,6 +119,12 @@ class FGZTrainer:
             embedding, logits = dynamics.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
 
+
+            preds = logits.argmax(1)
+            correct = (preds == target_logit)
+            self.expert_correct_frame_count += correct.sum()
+            self.expert_total_frame_count += 1
+
             # squared error (later it's averaged so MSE.)
             if i < len(full_window) - 1:
                 _, expected_embedding, _ = full_window[i + 1]  # use next embedding
@@ -127,10 +133,9 @@ class FGZTrainer:
         
         self.expert_consistency_loss /= c
 
-        # preds = discrim_logits.argmax(1)
-        # correct = (preds == fmc_discriminator_targets)
         # percent = correct.sum() / len(correct)
         # print("accuracy", percent)
+        # print("expert accuracy:", self.expert_correct_frame_count / self.expert_total_frame_count)
 
         return loss / self.fmc_steps_taken
 
@@ -203,11 +208,19 @@ class FGZTrainer:
 
         self.dynamics_function_optimizer.zero_grad()
 
+        # for accuracy calc
+        self.expert_correct_frame_count = 0
+        self.expert_total_frame_count = 0
+
+        task_ids = []
+
         total_loss = 0.0
         total_consistency_loss = 0.0
         total_classification_loss = 0.0
         for _ in range(batch_size):
             loss, consistency_loss, classification_loss = self.get_loss_for_sub_trajectory(max_steps=max_steps, use_tqdm=use_tqdm)
+
+            task_ids.append(self.current_trajectory_window.task_id)
 
             total_loss += loss
             total_consistency_loss += consistency_loss
@@ -216,6 +229,8 @@ class FGZTrainer:
         total_loss /= batch_size
         total_consistency_loss /= batch_size
         total_classification_loss /= batch_size
+
+        expert_classification_accuracy = self.expert_correct_frame_count / self.expert_total_frame_count
 
         total_loss.backward()
         self.dynamics_function_optimizer.step()
@@ -227,11 +242,16 @@ class FGZTrainer:
                 "train/total_loss": total_loss,
                 "train/expert_consistency_loss": total_consistency_loss,
                 "train/classification_loss": total_classification_loss,
+                "train/task_accuracy": expert_classification_accuracy,
+                "metrics/expert_total_frame_count": self.expert_total_frame_count,
                 # "fmc/steps_taken": self.fmc_steps_taken,
                 # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
             })
             
+        print("\n\n-------------------")
+        print("batch task ids:", task_ids)
         print("loss:", total_loss.item(), "classification_loss:", total_classification_loss.item(), "consistency loss:", total_consistency_loss.item())
+        print("accuracy:", expert_classification_accuracy)
 
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
