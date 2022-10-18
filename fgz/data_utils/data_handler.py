@@ -1,4 +1,3 @@
-
 import os
 from glob import glob
 from warnings import warn
@@ -15,11 +14,11 @@ import numpy as np
 
 
 class ContiguousTrajectory:
-    """Note: when iterating this class, only 1 frame will be yielded at a time. 
+    """Note: when iterating this class, only 1 frame will be yielded at a time.
     For a window/batch, use `ContiguousTrajectoryWindow`.
     """
 
-    def __init__(self, video_path: str, json_path: str, uid: str, task_id: int):
+    def __init__(self, video_path: str, json_path: str, uid: str, task_id: int = None):
         self.video_path = video_path
         self.json_path = json_path
         self.uid = uid
@@ -35,16 +34,18 @@ class ContiguousTrajectory:
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __iter__(self, start_frame: int=None):
-        return trajectory_generator(self.video_path, self.json_path, start_frame=start_frame)
+    def __iter__(self, start_frame: int = None):
+        return trajectory_generator(
+            self.video_path, self.json_path, start_frame=start_frame
+        )
 
 
 class ContiguousTrajectoryWindow:
     def __init__(
-        self, 
-        trajectory: ContiguousTrajectory, 
-        agent: MineRLAgent, 
-        frames_per_window: int=4,
+        self,
+        trajectory: ContiguousTrajectory,
+        agent: MineRLAgent,
+        frames_per_window: int = 4,
         allow_agent_gradients: bool = False,
         use_random_subsection: bool = False,
         num_strides: int = 8,
@@ -63,7 +64,9 @@ class ContiguousTrajectoryWindow:
 
         if self.use_random_subsection:
             required_num_frames = self.frames_per_window + self.num_strides
-            self.start = np.random.randint(low=0, high=len(self.trajectory) - required_num_frames)
+            self.start = np.random.randint(
+                low=0, high=len(self.trajectory) - required_num_frames
+            )
             self.end = self.start + required_num_frames
         else:
             self.start = 0
@@ -120,14 +123,16 @@ class ContiguousTrajectoryWindow:
             return
 
         if len(self.window) != self.frames_per_window:
-            raise ValueError(f"Unexpected window size. Got {len(self.window)}, expected: {self.frames_per_window}")
+            raise ValueError(
+                f"Unexpected window size. Got {len(self.window)}, expected: {self.frames_per_window}"
+            )
 
         self._num_returned_windows += 1
         return self.window
 
 
 class ContiguousTrajectoryDataLoader:
-    def __init__(self, dataset_path: str, task_id: int, minimum_steps: int=64):
+    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64):
         self.dataset_path = dataset_path
         self.task_id = task_id
         self.minimum_steps = minimum_steps
@@ -140,8 +145,17 @@ class ContiguousTrajectoryDataLoader:
         # create ContiguousTrajectory objects for every mp4/json file pair.
         self.trajectories = []
         for unique_id in unique_ids:
-            video_path = os.path.abspath(os.path.join(self.dataset_path, unique_id + ".mp4"))
-            json_path = os.path.abspath(os.path.join(self.dataset_path, unique_id + ".jsonl"))
+            video_path = os.path.abspath(
+                os.path.join(self.dataset_path, unique_id + ".mp4")
+            )
+            json_path = os.path.abspath(
+                os.path.join(self.dataset_path, unique_id + ".jsonl")
+            )
+
+            if not os.path.exists(video_path) or not os.path.exists(json_path):
+                warn(f"Skipping {unique_id}...")
+                continue
+
             t = ContiguousTrajectory(video_path, json_path, unique_id, task_id)
             self.trajectories.append(t)
 
@@ -170,7 +184,9 @@ class ContiguousTrajectoryDataLoader:
         t_len = len(t)
         if t_len < self.minimum_steps:
             self.trajectories.pop(trajectory_index)
-            warn(f"Removing trajectory from the dataset. It's length was too short ({t_len} < {self.minimum_steps}). Now there are {len(self.trajectories)} left.")
+            warn(
+                f"Removing trajectory from the dataset. It's length was too short ({t_len} < {self.minimum_steps}). Now there are {len(self.trajectories)} left."
+            )
             return self.sample()
 
         return t
@@ -178,13 +194,19 @@ class ContiguousTrajectoryDataLoader:
     def __str__(self):
         return f"ContiguousTrajectoryDataLoader(n={len(self)}, {self.dataset_path})"
 
+
 class DataHandler:
-    def __init__(self, dataset_paths: List[str], agent: MineRLAgent, frames_per_window: int):
+    def __init__(
+        self, dataset_paths: List[str], agent: MineRLAgent, frames_per_window: int
+    ):
         self.dataset_paths = dataset_paths
         self.frames_per_window = frames_per_window
-        self.loaders = [ContiguousTrajectoryDataLoader(path, task_id) for task_id, path in enumerate(self.dataset_paths)]
+        self.loaders = [
+            ContiguousTrajectoryDataLoader(path, task_id)
+            for task_id, path in enumerate(self.dataset_paths)
+        ]
         self.agent = agent
-    
+
     @property
     def num_tasks(self):
         # one loader per task
@@ -195,14 +217,14 @@ class DataHandler:
         # TODO: maybe sample more than 1 per task
         return [loader.sample() for loader in self.loaders]
 
-    def sample_single_trajectory(self):
+    def sample_single_trajectory(self, num_strides: int = 1):
         task_id = np.random.randint(low=0, high=self.num_tasks)
         trajectory = self.loaders[task_id].sample()
         return ContiguousTrajectoryWindow(
-            trajectory, 
-            agent=self.agent, 
+            trajectory,
+            agent=self.agent,
             frames_per_window=self.frames_per_window,
-            num_strides=1,
+            num_strides=num_strides,
             use_random_subsection=True,
         )
 

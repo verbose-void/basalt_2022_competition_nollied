@@ -9,67 +9,47 @@ import coloredlogs
 
 from fractal_zero.search.fmc import FMC
 from fractal_zero.vectorized_environment import VectorizedDynamicsModelEnvironment
-from fgz.architecture.dynamics_function import DynamicsFunction, MineRLDynamicsEnvironment
+from fgz.architecture.dynamics_function import (
+    DynamicsFunction,
+    MineRLDynamicsEnvironment,
+)
 from fgz.training.fgz_trainer import FGZTrainer
 from fgz.data_utils.data_handler import DataHandler
 from vpt.run_agent import load_agent
+from fgz_config import FGZConfig
 
 coloredlogs.install(logging.DEBUG)
 
-MODEL_FILE = "foundation-model-1x.model"
-# MODEL_FILE = "foundation-model-2x.model"
-# MODEL_FILE = "foundation-model-3x.model"
 
-WEIGHTS_FILE = "foundation-model-1x.weights"
-# WEIGHTS_FILE = "rl-from-early-game-2x.weights"
-
-MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
-DATASET_PATHS = [
-    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltBuildVillageHouse-v0"),
-    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltCreateVillageAnimalPen-v0"),
-    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltFindCave-v0"),
-    os.path.join(MINERL_DATA_ROOT, "MineRLBasaltMakeWaterfall-v0"),
-]
-
-VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
-PRETRAINED_AGENT_MODEL_FILE = os.path.join(VPT_MODELS_ROOT, MODEL_FILE)
-PRETRAINED_AGENT_WEIGHTS_FILE = os.path.join(VPT_MODELS_ROOT, WEIGHTS_FILE)
+def get_agent(config: FGZConfig):
+    print("Loading model", config.model_filename)
+    print("with weights", config.weights_filename)
+    return load_agent(config.model_path, config.weights_path)
 
 
-DISCRIMINATOR_CLASSES = 4 + 1  # 4 tasks, 1 decoy (FMC)
-
-
-NUM_WALKERS = 128
-UNROLL_STEPS = 8
-
-
-def get_agent():
-    print("Loading model", PRETRAINED_AGENT_MODEL_FILE)
-    print("with weights", PRETRAINED_AGENT_WEIGHTS_FILE)
-    return load_agent(PRETRAINED_AGENT_MODEL_FILE, PRETRAINED_AGENT_WEIGHTS_FILE)
-
-
-def get_dynamics_function():
+def get_dynamics_function(config: FGZConfig):
     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
-        discriminator_classes=DISCRIMINATOR_CLASSES,
-        embedder_layers=16,
+        discriminator_classes=config.num_discriminator_classes,
+        embedder_layers=4,
         button_features=128,
-        camera_features=32,
+        camera_features=128,
     )
 
 
-def get_dynamics_environment(minerl_env: gym.Env) -> MineRLDynamicsEnvironment:
-    dynamics_function = get_dynamics_function()
+def get_dynamics_environment(config: FGZConfig) -> MineRLDynamicsEnvironment:
+    dynamics_function = get_dynamics_function(config)
     return MineRLDynamicsEnvironment(
-        minerl_env.action_space, 
+        config.action_space,
         dynamics_function=dynamics_function,
-        n=NUM_WALKERS,
+        n=config.num_walkers,
     )
 
 
-def get_data_handler(agent):
-    return DataHandler(DATASET_PATHS, agent=agent, frames_per_window=UNROLL_STEPS)
+def get_data_handler(config: FGZConfig, agent):
+    return DataHandler(
+        config.dataset_paths, agent=agent, frames_per_window=config.unroll_steps
+    )
 
 
 def main():
@@ -79,11 +59,13 @@ def main():
     All trained models should be placed under "train" directory!
     """
 
-    minerl_env = gym.make('MineRLBasaltFindCave-v0')
-    agent = get_agent()
-    dynamics_env = get_dynamics_environment(minerl_env)
+    config = FGZConfig(use_wandb=False)
+
+    minerl_env = gym.make("MineRLBasaltFindCave-v0")
+    agent = get_agent(config)
+    dynamics_env = get_dynamics_environment(config)
     fmc = FMC(dynamics_env)
-    trainer = FGZTrainer(minerl_env, agent, fmc, unroll_steps=UNROLL_STEPS)
+    trainer = FGZTrainer(minerl_env, agent, fmc, config=config)
 
     # For an example, lets just run 100 steps of the environment for training
     # obs = env.reset()
