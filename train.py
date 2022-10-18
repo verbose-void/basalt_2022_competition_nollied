@@ -9,7 +9,10 @@ import coloredlogs
 
 from fractal_zero.search.fmc import FMC
 from fractal_zero.vectorized_environment import VectorizedDynamicsModelEnvironment
-from fgz.architecture.dynamics_function import DynamicsFunction, MineRLDynamicsEnvironment
+from fgz.architecture.dynamics_function import (
+    DynamicsFunction,
+    MineRLDynamicsEnvironment,
+)
 from fgz.training.fgz_trainer import FGZTrainer
 from fgz.data_utils.data_handler import DataHandler
 from vpt.run_agent import load_agent
@@ -37,14 +40,16 @@ def get_dynamics_function(config: FGZConfig):
 def get_dynamics_environment(config: FGZConfig) -> MineRLDynamicsEnvironment:
     dynamics_function = get_dynamics_function(config)
     return MineRLDynamicsEnvironment(
-        config.action_space, 
+        config.action_space,
         dynamics_function=dynamics_function,
         n=config.num_walkers,
     )
 
 
 def get_data_handler(config: FGZConfig, agent):
-    return DataHandler(config.dataset_paths, agent=agent, frames_per_window=config.unroll_steps)
+    return DataHandler(
+        config.dataset_paths, agent=agent, frames_per_window=config.unroll_steps
+    )
 
 
 def main():
@@ -56,7 +61,7 @@ def main():
 
     config = FGZConfig(use_wandb=False)
 
-    minerl_env = gym.make('MineRLBasaltFindCave-v0')
+    minerl_env = gym.make("MineRLBasaltFindCave-v0")
     agent = get_agent(config)
     dynamics_env = get_dynamics_environment(config)
     fmc = FMC(dynamics_env)

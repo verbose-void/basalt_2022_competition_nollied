@@ -16,7 +16,7 @@ TASKS = [
 ]
 
 
-MINERL_DATA_ROOT = os.getenv('MINERL_DATA_ROOT', 'data/')
+MINERL_DATA_ROOT = os.getenv("MINERL_DATA_ROOT", "data/")
 VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
 
 
@@ -33,7 +33,6 @@ class FGZConfig:
     # ordering of these tasks determines the ordering of the responsibility of the discriminator logits.
     # ENABLED_TASKS = [0, 1, 2, 3]  # all 4 tasks.
 
-    
     enabled_tasks: List[int] = field(default_factory=lambda: [3])  # waterfall only.
 
     # when this is true, FMC will not be run and the discriminator will only try to discriminate between
@@ -68,12 +67,16 @@ class FGZConfig:
     @property
     def dataset_paths(self) -> List[str]:
         return [
-            os.path.join(MINERL_DATA_ROOT, TASKS[task_id]["dataset_dir"]) for task_id in self.enabled_tasks
+            os.path.join(MINERL_DATA_ROOT, TASKS[task_id]["dataset_dir"])
+            for task_id in self.enabled_tasks
         ]
 
     @property
     def environment_id_to_task_logit(self):
-        return {TASKS[task_id]["dataset_dir"]: i for i, task_id in enumerate(self.enabled_tasks)}
+        return {
+            TASKS[task_id]["dataset_dir"]: i
+            for i, task_id in enumerate(self.enabled_tasks)
+        }
 
     def asdict(self):
         return {

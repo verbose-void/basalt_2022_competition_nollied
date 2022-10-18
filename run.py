@@ -11,14 +11,14 @@ import test_MakeWaterfall
 import os
 
 # By default, only do testing
-EVALUATION_STAGE = os.getenv('EVALUATION_STAGE', 'testing')
+EVALUATION_STAGE = os.getenv("EVALUATION_STAGE", "testing")
 
 # Training Phase
-if EVALUATION_STAGE in ['all', 'training']:
+if EVALUATION_STAGE in ["all", "training"]:
     train.main()
 
 # Testing Phase
-if EVALUATION_STAGE in ['all', 'testing']:
+if EVALUATION_STAGE in ["all", "testing"]:
     test_BuildVillageHouse.main()
     test_CreateVillageAnimalPen.main()
     test_FindCave.main()

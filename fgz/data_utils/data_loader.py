@@ -14,30 +14,32 @@ from vpt.lib.actions import ActionTransformer
 
 QUEUE_TIMEOUT = 10
 
-CURSOR_FILE = os.path.join(os.path.dirname(__file__), "cursors", "mouse_cursor_white_16x16.png")
+CURSOR_FILE = os.path.join(
+    os.path.dirname(__file__), "cursors", "mouse_cursor_white_16x16.png"
+)
 
 # Mapping from JSON keyboard buttons to MineRL actions
 KEYBOARD_BUTTON_MAPPING = {
-    "key.keyboard.escape" :"ESC",
-    "key.keyboard.s" :"back",
-    "key.keyboard.q" :"drop",
-    "key.keyboard.w" :"forward",
-    "key.keyboard.1" :"hotbar.1",
-    "key.keyboard.2" :"hotbar.2",
-    "key.keyboard.3" :"hotbar.3",
-    "key.keyboard.4" :"hotbar.4",
-    "key.keyboard.5" :"hotbar.5",
-    "key.keyboard.6" :"hotbar.6",
-    "key.keyboard.7" :"hotbar.7",
-    "key.keyboard.8" :"hotbar.8",
-    "key.keyboard.9" :"hotbar.9",
-    "key.keyboard.e" :"inventory",
-    "key.keyboard.space" :"jump",
-    "key.keyboard.a" :"left",
-    "key.keyboard.d" :"right",
-    "key.keyboard.left.shift" :"sneak",
-    "key.keyboard.left.control" :"sprint",
-    "key.keyboard.f" :"swapHands",
+    "key.keyboard.escape": "ESC",
+    "key.keyboard.s": "back",
+    "key.keyboard.q": "drop",
+    "key.keyboard.w": "forward",
+    "key.keyboard.1": "hotbar.1",
+    "key.keyboard.2": "hotbar.2",
+    "key.keyboard.3": "hotbar.3",
+    "key.keyboard.4": "hotbar.4",
+    "key.keyboard.5": "hotbar.5",
+    "key.keyboard.6": "hotbar.6",
+    "key.keyboard.7": "hotbar.7",
+    "key.keyboard.8": "hotbar.8",
+    "key.keyboard.9": "hotbar.9",
+    "key.keyboard.e": "inventory",
+    "key.keyboard.space": "jump",
+    "key.keyboard.a": "left",
+    "key.keyboard.d": "right",
+    "key.keyboard.left.shift": "sneak",
+    "key.keyboard.left.control": "sprint",
+    "key.keyboard.f": "swapHands",
 }
 
 # Template action
@@ -144,7 +146,9 @@ def composite_images_with_alpha(image1, image2, alpha, x, y):
     if ch == 0 or cw == 0:
         return
     alpha = alpha[:ch, :cw]
-    image1[y:y + ch, x:x + cw, :] = (image1[y:y + ch, x:x + cw, :] * (1 - alpha) + image2[:ch, :cw, :] * alpha).astype(np.uint8)
+    image1[y : y + ch, x : x + cw, :] = (
+        image1[y : y + ch, x : x + cw, :] * (1 - alpha) + image2[:ch, :cw, :] * alpha
+    ).astype(np.uint8)
 
 
 def get_json_data(json_path: str):
@@ -155,7 +159,7 @@ def get_json_data(json_path: str):
     return json_data
 
 
-def trajectory_generator(video_path, json_path, start_frame: int=None):
+def trajectory_generator(video_path, json_path, start_frame: int = None):
     cursor_image = cv2.imread(CURSOR_FILE, cv2.IMREAD_UNCHANGED)
     # Assume 16x16
     cursor_image = cursor_image[:16, :16, :]
@@ -172,7 +176,6 @@ def trajectory_generator(video_path, json_path, start_frame: int=None):
     # Work around this by keeping track of selected hotbar item
     # and updating "hotbar.#" actions when hotbar selection changes.
     last_hotbar = 0
-
 
     json_data = get_json_data(json_path)
 
@@ -194,7 +197,9 @@ def trajectory_generator(video_path, json_path, start_frame: int=None):
                 attack_is_stuck = False
         # If still stuck, remove the action
         if attack_is_stuck:
-            step_data["mouse"]["buttons"] = [button for button in step_data["mouse"]["buttons"] if button != 0]
+            step_data["mouse"]["buttons"] = [
+                button for button in step_data["mouse"]["buttons"] if button != 0
+            ]
 
         action, is_null_action = json_action_to_env_action(step_data)
 
@@ -216,7 +221,9 @@ def trajectory_generator(video_path, json_path, start_frame: int=None):
                 camera_scaling_factor = frame.shape[0] / MINEREC_ORIGINAL_HEIGHT_PX
                 cursor_x = int(step_data["mouse"]["x"] * camera_scaling_factor)
                 cursor_y = int(step_data["mouse"]["y"] * camera_scaling_factor)
-                composite_images_with_alpha(frame, cursor_image, cursor_alpha, cursor_x, cursor_y)
+                composite_images_with_alpha(
+                    frame, cursor_image, cursor_alpha, cursor_x, cursor_y
+                )
             cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
             frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
             frame = resize_image(frame, AGENT_RESOLUTION)
@@ -272,7 +279,9 @@ def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
                     attack_is_stuck = False
             # If still stuck, remove the action
             if attack_is_stuck:
-                step_data["mouse"]["buttons"] = [button for button in step_data["mouse"]["buttons"] if button != 0]
+                step_data["mouse"]["buttons"] = [
+                    button for button in step_data["mouse"]["buttons"] if button != 0
+                ]
 
             action, is_null_action = json_action_to_env_action(step_data)
 
@@ -294,7 +303,9 @@ def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
                     camera_scaling_factor = frame.shape[0] / MINEREC_ORIGINAL_HEIGHT_PX
                     cursor_x = int(step_data["mouse"]["x"] * camera_scaling_factor)
                     cursor_y = int(step_data["mouse"]["y"] * camera_scaling_factor)
-                    composite_images_with_alpha(frame, cursor_image, cursor_alpha, cursor_x, cursor_y)
+                    composite_images_with_alpha(
+                        frame, cursor_image, cursor_alpha, cursor_x, cursor_y
+                    )
                 cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
                 frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
                 frame = resize_image(frame, AGENT_RESOLUTION)
@@ -306,6 +317,7 @@ def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
             break
     # Tell that we ended
     output_queue.put(None)
+
 
 class DataLoader:
     """
@@ -322,8 +334,13 @@ class DataLoader:
     - Loads up individual files as trajectory files (i.e. if a trajectory is split into multiple files,
       this code will load it up as a separate item).
     """
-    def __init__(self, dataset_dir, n_workers=8, batch_size=8, n_epochs=1, max_queue_size=16):
-        assert n_workers >= batch_size, "Number of workers must be equal or greater than batch size"
+
+    def __init__(
+        self, dataset_dir, n_workers=8, batch_size=8, n_epochs=1, max_queue_size=16
+    ):
+        assert (
+            n_workers >= batch_size
+        ), "Number of workers must be equal or greater than batch size"
         self.dataset_dir = dataset_dir
         self.n_workers = n_workers
         self.n_epochs = n_epochs
@@ -339,7 +356,9 @@ class DataLoader:
             json_path = os.path.abspath(os.path.join(dataset_dir, unique_id + ".jsonl"))
             demonstration_tuples.append((video_path, json_path))
 
-        assert n_workers <= len(demonstration_tuples), f"n_workers should be lower or equal than number of demonstrations {len(demonstration_tuples)}"
+        assert n_workers <= len(
+            demonstration_tuples
+        ), f"n_workers should be lower or equal than number of demonstrations {len(demonstration_tuples)}"
 
         # Repeat dataset for n_epochs times, shuffling the order for
         # each epoch
@@ -365,7 +384,7 @@ class DataLoader:
                     output_queue,
                     self.quit_workers_event,
                 ),
-                daemon=True
+                daemon=True,
             )
             for output_queue in self.output_queues
         ]
@@ -381,7 +400,9 @@ class DataLoader:
         batch_episode_id = []
 
         for i in range(self.batch_size):
-            workitem = self.output_queues[self.n_steps_processed % self.n_workers].get(timeout=QUEUE_TIMEOUT)
+            workitem = self.output_queues[self.n_steps_processed % self.n_workers].get(
+                timeout=QUEUE_TIMEOUT
+            )
             if workitem is None:
                 # Stop iteration when first worker runs out of work to do.
                 # Yes, this has a chance of cutting out a lot of the work,

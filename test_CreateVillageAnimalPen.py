@@ -8,7 +8,7 @@ from config import EVAL_EPISODES, EVAL_MAX_STEPS
 
 coloredlogs.install(logging.DEBUG)
 
-MINERL_GYM_ENV = 'MineRLBasaltCreateVillageAnimalPen-v0'
+MINERL_GYM_ENV = "MineRLBasaltCreateVillageAnimalPen-v0"
 
 
 def main():

@@ -14,9 +14,18 @@ import urllib.request
 import os
 
 parser = argparse.ArgumentParser(description="Download OpenAI contractor datasets")
-parser.add_argument("--json-file", type=str, required=True, help="Path to the index .json file")
-parser.add_argument("--output-dir", type=str, required=True, help="Path to the output directory")
-parser.add_argument("--num-demos", type=int, default=None, help="Maximum number of demonstrations to download")
+parser.add_argument(
+    "--json-file", type=str, required=True, help="Path to the index .json file"
+)
+parser.add_argument(
+    "--output-dir", type=str, required=True, help="Path to the output directory"
+)
+parser.add_argument(
+    "--num-demos",
+    type=int,
+    default=None,
+    help="Maximum number of demonstrations to download",
+)
 
 
 def main(args):
@@ -26,7 +35,7 @@ def main(args):
     basedir = data["basedir"]
     relpaths = data["relpaths"]
     if args.num_demos is not None:
-        relpaths = relpaths[:args.num_demos]
+        relpaths = relpaths[: args.num_demos]
 
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)

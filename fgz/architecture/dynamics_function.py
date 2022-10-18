@@ -12,6 +12,7 @@ from fractal_zero.vectorized_environment import VectorizedEnvironment
 
 num_actions = len(Buttons.ALL)
 
+
 def _vectorize_buttons(action: Dict):
     a = torch.zeros(num_actions, dtype=float)
     for i, button_str in enumerate(Buttons.ALL):
@@ -19,13 +20,15 @@ def _vectorize_buttons(action: Dict):
     a[a > 0] = torch.softmax(a[a > 0], dim=0)
     return a
 
-def vectorize_minerl_action(action: Dict, camera_scale: float=180):
+
+def vectorize_minerl_action(action: Dict, camera_scale: float = 180):
     # group movement keys
     button_vec = _vectorize_buttons(action)
     camera_vec = torch.tensor(action["camera"], dtype=float) / camera_scale
     return button_vec.float(), camera_vec.float()
 
-def vectorize_minerl_actions(actions: List[Dict], camera_scale: float=180):
+
+def vectorize_minerl_actions(actions: List[Dict], camera_scale: float = 180):
     button_vecs = []
     camera_vecs = []
     for action in actions:
@@ -34,14 +37,15 @@ def vectorize_minerl_actions(actions: List[Dict], camera_scale: float=180):
         camera_vecs.append(cv)
     return torch.stack(button_vecs), torch.stack(camera_vecs)
 
+
 class DynamicsFunction(torch.nn.Module):
     def __init__(
-        self, 
-        state_embedding_size: int=1024, 
-        button_features: int=16, 
-        camera_features: int=16, 
-        embedder_layers: int=4,
-        discriminator_classes: int=2,
+        self,
+        state_embedding_size: int = 1024,
+        button_features: int = 16,
+        camera_features: int = 16,
+        embedder_layers: int = 4,
+        discriminator_classes: int = 2,
     ):
         super().__init__()
 
@@ -58,12 +62,20 @@ class DynamicsFunction(torch.nn.Module):
         )
 
         embeds = [
-            torch.nn.Linear(state_embedding_size + button_features + camera_features, state_embedding_size)
+            torch.nn.Linear(
+                state_embedding_size + button_features + camera_features,
+                state_embedding_size,
+            )
         ]
         for _ in range(embedder_layers):
-            embeds.extend((torch.nn.ReLU(), torch.nn.Linear(state_embedding_size, state_embedding_size)))
+            embeds.extend(
+                (
+                    torch.nn.ReLU(),
+                    torch.nn.Linear(state_embedding_size, state_embedding_size),
+                )
+            )
         self.embedder = torch.nn.Sequential(
-            *embeds, 
+            *embeds,
             torch.nn.Sigmoid(),  # prevent discriminator from exploiting FMC similarity measure.
         )
 
@@ -75,13 +87,20 @@ class DynamicsFunction(torch.nn.Module):
     def dummy_initial_state(self):
         return torch.zeros(self.state_embedding_size, dtype=float, requires_grad=True)
 
-    def forward(self, state_embedding, buttons_vector, camera_vector, use_discrim: bool = True):
-        assert state_embedding.dim() <= 2 and state_embedding.shape[-1] == self.state_embedding_size, str(state_embedding.shape)
+    def forward(
+        self, state_embedding, buttons_vector, camera_vector, use_discrim: bool = True
+    ):
+        assert (
+            state_embedding.dim() <= 2
+            and state_embedding.shape[-1] == self.state_embedding_size
+        ), str(state_embedding.shape)
 
         button_embedding = self.button_embedder.forward(buttons_vector)
         camera_embedding = self.camera_embedder.forward(camera_vector)
 
-        concat_state = torch.cat((state_embedding, button_embedding, camera_embedding), dim=-1)
+        concat_state = torch.cat(
+            (state_embedding, button_embedding, camera_embedding), dim=-1
+        )
         new_state = self.embedder.forward(concat_state)
 
         if not use_discrim:
@@ -95,16 +114,20 @@ class DynamicsFunction(torch.nn.Module):
     def forward_action(self, state_embedding, action, use_discrim: bool = True):
         button_vec, camera_vec = vectorize_minerl_action(action)
         # TODO: handle GPU
-        return self.forward(state_embedding.cpu(), button_vec.unsqueeze(0), camera_vec.unsqueeze(0), use_discrim=use_discrim)
+        return self.forward(
+            state_embedding.cpu(),
+            button_vec.unsqueeze(0),
+            camera_vec.unsqueeze(0),
+            use_discrim=use_discrim,
+        )
 
 
 class MineRLDynamicsEnvironment(VectorizedEnvironment):
-
     def __init__(
-        self, 
-        action_space: gym.Env, 
-        dynamics_function: DynamicsFunction, 
-        n: int=1,
+        self,
+        action_space: gym.Env,
+        dynamics_function: DynamicsFunction,
+        n: int = 1,
         apply_softmax_before_reward: bool = True,
     ):
         self.action_space = action_space
@@ -128,10 +151,15 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
     def batch_step(self, actions, freeze_mask):
         assert len(actions) == self.n
-        assert self.states.shape == (self.n, self.dynamics_function.state_embedding_size)
+        assert self.states.shape == (
+            self.n,
+            self.dynamics_function.state_embedding_size,
+        )
 
         button_vectors, camera_vectors = vectorize_minerl_actions(actions)
-        new_states, discrim_logits = self.dynamics_function.forward(self.states, button_vectors, camera_vectors)
+        new_states, discrim_logits = self.dynamics_function.forward(
+            self.states, button_vectors, camera_vectors
+        )
 
         # don't forward frozen states, frozen state's confusions are 0.
         self.states[freeze_mask != 1] = new_states[freeze_mask != 1]
@@ -147,7 +175,9 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
             rewards = torch.where(freeze_mask, 0, soft_confusions)
         else:
             # target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
-            target_discrim_class_confusions = discrim_logits[:, self.target_discriminator_logit]
+            target_discrim_class_confusions = discrim_logits[
+                :, self.target_discriminator_logit
+            ]
             rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
 
         obs = self.states

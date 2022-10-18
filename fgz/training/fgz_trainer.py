@@ -17,9 +17,7 @@ from fgz.data_utils.data_handler import DataHandler
 from fgz_config import FGZConfig, TASKS
 
 
-
 class FGZTrainer:
-
     def __init__(
         self,
         agent: MineRLAgent,
@@ -84,7 +82,9 @@ class FGZTrainer:
         # TODO: explain
         discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
         discrim_logits = torch.cat(discrim_logits)
-        fmc_discriminator_targets = torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.config.fmc_logit
+        fmc_discriminator_targets = (
+            torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.config.fmc_logit
+        )
 
         # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
         # fmc_confusions = torch.cat(fmc_confusions)
@@ -100,7 +100,9 @@ class FGZTrainer:
         dynamics: DynamicsFunction = self.fmc.vec_env.dynamics_function
 
         # each logit corresponds to one of the tasks. we can consider this to be our label
-        target_logit = torch.tensor([self.current_trajectory_window.task_id], dtype=torch.long)
+        target_logit = torch.tensor(
+            [self.current_trajectory_window.task_id], dtype=torch.long
+        )
 
         # one-hot encode the task classificaiton target
         # classification_target = torch.zeros(self.num_tasks, dtype=torch.bool)
@@ -119,18 +121,19 @@ class FGZTrainer:
             embedding, logits = dynamics.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
 
-
             preds = logits.argmax(1)
-            correct = (preds == target_logit)
+            correct = preds == target_logit
             self.expert_correct_frame_count += correct.sum()
             self.expert_total_frame_count += 1
 
             # squared error (later it's averaged so MSE.)
             if i < len(full_window) - 1:
                 _, expected_embedding, _ = full_window[i + 1]  # use next embedding
-                self.expert_consistency_loss += torch.mean((embedding - expected_embedding) ** 2)
+                self.expert_consistency_loss += torch.mean(
+                    (embedding - expected_embedding) ** 2
+                )
                 c += 1
-        
+
         self.expert_consistency_loss /= c
 
         # percent = correct.sum() / len(correct)
@@ -146,7 +149,9 @@ class FGZTrainer:
         end_frame = self.current_trajectory_window.end
         return f"Training on {task_name}({uid})[{start_frame}:{end_frame}]"
 
-    def get_loss_for_sub_trajectory(self, max_steps: int = None, use_tqdm: bool = False):
+    def get_loss_for_sub_trajectory(
+        self, max_steps: int = None, use_tqdm: bool = False
+    ):
         if self.config.disable_fmc_detection:
             self.fmc_steps_taken = self.config.unroll_steps
             self.fmc_confusions = np.zeros(1)
@@ -156,18 +161,23 @@ class FGZTrainer:
         self.agent.reset()
         self.current_trajectory_window = self.data_handler.sample_single_trajectory()
 
-        desc = self._get_tqdm_description()        
-        it = tqdm(self.current_trajectory_window, desc=desc, disable=not use_tqdm, total=max_steps)
+        desc = self._get_tqdm_description()
+        it = tqdm(
+            self.current_trajectory_window,
+            desc=desc,
+            disable=not use_tqdm,
+            total=max_steps,
+        )
 
         total_loss = 0.0
         total_consistency_loss = 0.0
-        
+
         step = 0  # just in case.
         for step, full_window in enumerate(it):
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
 
             expert_loss = self.get_expert_loss(full_window)
-            
+
             if self.config.disable_fmc_detection:
                 fmc_loss = 0.0
             else:
@@ -193,18 +203,19 @@ class FGZTrainer:
 
         return total_loss, total_consistency_loss, classification_loss
 
-    def train_sub_trajectories(self, batch_size: int, use_tqdm: bool=False, max_steps: int = None):
+    def train_sub_trajectories(
+        self, batch_size: int, use_tqdm: bool = False, max_steps: int = None
+    ):
         """
         2 trajectories are gathered:
             1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
             2.  Each state in the expert trajectory is embedded using a pretrained agent model. FMC runs a simulation for
                 every embedded state from the expert trajectory/agent while trying to maximize a specific discriminator
                 logit (to confuse the discriminator into believing it's actions came from the expert dataset).
-        
+
         Then, the discriminator is trained to recognize the differences between true expert trajectories and trajectories
         resulting from exploiting the discriminator's confusion.
         """
-
 
         self.dynamics_function_optimizer.zero_grad()
 
@@ -218,7 +229,11 @@ class FGZTrainer:
         total_consistency_loss = 0.0
         total_classification_loss = 0.0
         for _ in range(batch_size):
-            loss, consistency_loss, classification_loss = self.get_loss_for_sub_trajectory(max_steps=max_steps, use_tqdm=use_tqdm)
+            (
+                loss,
+                consistency_loss,
+                classification_loss,
+            ) = self.get_loss_for_sub_trajectory(max_steps=max_steps, use_tqdm=use_tqdm)
 
             task_ids.append(self.current_trajectory_window.task_id)
 
@@ -230,42 +245,58 @@ class FGZTrainer:
         total_consistency_loss /= batch_size
         total_classification_loss /= batch_size
 
-        expert_classification_accuracy = self.expert_correct_frame_count / self.expert_total_frame_count
+        expert_classification_accuracy = (
+            self.expert_correct_frame_count / self.expert_total_frame_count
+        )
 
         total_loss.backward()
         self.dynamics_function_optimizer.step()
 
         if self.config.use_wandb and wandb.run:
-            wandb.log({
-                # "train/fmc_loss": fmc_loss,
-                # "train/expert_loss": expert_loss,
-                "train/total_loss": total_loss,
-                "train/expert_consistency_loss": total_consistency_loss,
-                "train/classification_loss": total_classification_loss,
-                "train/task_accuracy": expert_classification_accuracy,
-                "metrics/expert_total_frame_count": self.expert_total_frame_count,
-                # "fmc/steps_taken": self.fmc_steps_taken,
-                # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
-            })
-            
+            wandb.log(
+                {
+                    # "train/fmc_loss": fmc_loss,
+                    # "train/expert_loss": expert_loss,
+                    "train/total_loss": total_loss,
+                    "train/expert_consistency_loss": total_consistency_loss,
+                    "train/classification_loss": total_classification_loss,
+                    "train/task_accuracy": expert_classification_accuracy,
+                    "metrics/expert_total_frame_count": self.expert_total_frame_count,
+                    # "fmc/steps_taken": self.fmc_steps_taken,
+                    # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
+                }
+            )
+
         print("\n\n-------------------")
         print("batch task ids:", task_ids)
-        print("loss:", total_loss.item(), "classification_loss:", total_classification_loss.item(), "consistency loss:", total_consistency_loss.item())
+        print(
+            "loss:",
+            total_loss.item(),
+            "classification_loss:",
+            total_classification_loss.item(),
+            "consistency loss:",
+            total_consistency_loss.item(),
+        )
         print("accuracy:", expert_classification_accuracy)
-
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
         #     start_embedding, _ = expert_sequence[0]  # "representation function"
 
         #     fmc_dynamics_embeddings, fmc_actions = self.get_fmc_trajectory(
-        #         start_embedding, 
+        #         start_embedding,
         #         max_steps=self.unroll_steps
         #     )
         #     expert_embeddings, expert_actions = unroller.decompose_window(expert_sequence[1:])
 
     @torch.no_grad()
-    def evaluate(self, minerl_environment_id: str, render: bool=False, max_steps: int=None, force_no_escape: bool = False):
+    def evaluate(
+        self,
+        minerl_environment_id: str,
+        render: bool = False,
+        max_steps: int = None,
+        force_no_escape: bool = False,
+    ):
         target_logit = self.config.environment_id_to_task_logit[minerl_environment_id]
 
         env = gym.make(minerl_environment_id)
@@ -286,7 +317,9 @@ class FGZTrainer:
 
             # get best FMC action
             path = self.fmc.tree.best_path
-            action = path.get_action_between(path.ordered_states[0], path.ordered_states[1])
+            action = path.get_action_between(
+                path.ordered_states[0], path.ordered_states[1]
+            )
 
             if force_no_escape:
                 action["ESC"] = np.zeros(1, dtype=int)
