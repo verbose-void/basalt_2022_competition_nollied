@@ -122,7 +122,7 @@ class FGZTrainer:
             # squared error (later it's averaged so MSE.)
             if i < len(full_window) - 1:
                 _, expected_embedding, _ = full_window[i + 1]  # use next embedding
-                self.expert_consistency_loss += torch.sum((embedding - expected_embedding) ** 2)
+                self.expert_consistency_loss += torch.mean((embedding - expected_embedding) ** 2)
                 c += 1
         
         self.expert_consistency_loss /= c
@@ -141,18 +141,7 @@ class FGZTrainer:
         end_frame = self.current_trajectory_window.end
         return f"Training on {task_name}({uid})[{start_frame}:{end_frame}]"
 
-    def train_sub_trajectory(self, use_tqdm: bool=False, max_steps: int = None):
-        """
-        2 trajectories are gathered:
-            1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
-            2.  Each state in the expert trajectory is embedded using a pretrained agent model. FMC runs a simulation for
-                every embedded state from the expert trajectory/agent while trying to maximize a specific discriminator
-                logit (to confuse the discriminator into believing it's actions came from the expert dataset).
-        
-        Then, the discriminator is trained to recognize the differences between true expert trajectories and trajectories
-        resulting from exploiting the discriminator's confusion.
-        """
-
+    def get_loss_for_sub_trajectory(self, max_steps: int = None, use_tqdm: bool = False):
         if self.config.disable_fmc_detection:
             self.fmc_steps_taken = self.config.unroll_steps
             self.fmc_confusions = np.zeros(1)
@@ -168,10 +157,9 @@ class FGZTrainer:
         total_loss = 0.0
         total_consistency_loss = 0.0
         
+        step = 0  # just in case.
         for step, full_window in enumerate(it):
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
-
-            self.dynamics_function_optimizer.zero_grad()
 
             expert_loss = self.get_expert_loss(full_window)
             
@@ -193,10 +181,44 @@ class FGZTrainer:
 
         total_loss /= step + 1
         total_consistency_loss /= step + 1
-        total_consistency_loss *= 0.001
+        # total_consistency_loss *= 0.001
 
         classification_loss = total_loss
         total_loss += total_consistency_loss
+
+        return total_loss, total_consistency_loss, classification_loss
+
+    def train_sub_trajectories(self, batch_size: int, use_tqdm: bool=False, max_steps: int = None):
+        """
+        2 trajectories are gathered:
+            1.  From expert dataset, where the entire trajectory is lazily loaded as a contiguous piece.
+            2.  Each state in the expert trajectory is embedded using a pretrained agent model. FMC runs a simulation for
+                every embedded state from the expert trajectory/agent while trying to maximize a specific discriminator
+                logit (to confuse the discriminator into believing it's actions came from the expert dataset).
+        
+        Then, the discriminator is trained to recognize the differences between true expert trajectories and trajectories
+        resulting from exploiting the discriminator's confusion.
+        """
+
+
+        self.dynamics_function_optimizer.zero_grad()
+
+        total_loss = 0.0
+        total_consistency_loss = 0.0
+        total_classification_loss = 0.0
+        for _ in range(batch_size):
+            loss, consistency_loss, classification_loss = self.get_loss_for_sub_trajectory(max_steps=max_steps, use_tqdm=use_tqdm)
+
+            total_loss += loss
+            total_consistency_loss += consistency_loss
+            total_classification_loss += classification_loss
+
+        total_loss /= batch_size
+        total_consistency_loss /= batch_size
+        total_classification_loss /= batch_size
+
+        total_loss.backward()
+        self.dynamics_function_optimizer.step()
 
         if self.config.use_wandb and wandb.run:
             wandb.log({
@@ -204,15 +226,13 @@ class FGZTrainer:
                 # "train/expert_loss": expert_loss,
                 "train/total_loss": total_loss,
                 "train/expert_consistency_loss": total_consistency_loss,
-                "train/classification_loss": classification_loss,
+                "train/classification_loss": total_classification_loss,
                 # "fmc/steps_taken": self.fmc_steps_taken,
                 # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
             })
             
-        print("loss:", total_loss.item(), "classification_loss:", classification_loss.item(), "consistency loss:", total_consistency_loss.item())
+        print("loss:", total_loss.item(), "classification_loss:", total_classification_loss.item(), "consistency loss:", total_consistency_loss.item())
 
-        total_loss.backward()
-        self.dynamics_function_optimizer.step()
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
