@@ -3,7 +3,10 @@ logs
 
 data/*
 wandb/*
+*/wandb/*
+*wandb/
 
+*.DS_Store
 *checkpoint.pth
 
 # Byte-compiled / optimized / DLL files
