@@ -54,6 +54,8 @@ class FGZConfig:
     @property
     def num_discriminator_classes(self):
         # plus 1 because FMC is a class label
+        if self.disable_fmc_detection:
+            return len(self.enabled_tasks)
         return len(self.enabled_tasks) + 1
 
     @property

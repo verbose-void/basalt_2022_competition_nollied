@@ -4,6 +4,9 @@ import os
 import numpy as np
 import gym
 import minerl
+import torch
+import wandb
+from tqdm import tqdm
 
 import coloredlogs
 
@@ -52,6 +55,17 @@ def get_data_handler(config: FGZConfig, agent):
     )
 
 
+def run_training(trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10):
+
+    for train_step in tqdm(range(train_steps), desc="Training"):
+        trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
+
+        if train_step % checkpoint_every == 0:
+            trainer.save("./train/fgz_dynamics_checkpoint.pth")
+
+        if lr_scheduler is not None:
+            lr_scheduler.step()
+
 def main():
     """
     This function will be called for training phase.
@@ -59,30 +73,41 @@ def main():
     All trained models should be placed under "train" directory!
     """
 
-    config = FGZConfig(use_wandb=False)
+    train_steps = 100
+    batch_size = 8
 
-    minerl_env = gym.make("MineRLBasaltFindCave-v0")
+    enabled_tasks = [2, 3]  # cave and waterfall 
+    # enabled_tasks = [0, 1, 2, 3]  # all 
+
+    config = FGZConfig(
+        enabled_tasks=enabled_tasks,
+        disable_fmc_detection=True,  # if true, only classification will occur. 
+        use_wandb=False,
+        unroll_steps=64,
+    )
+
+    # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     agent = get_agent(config)
     dynamics_env = get_dynamics_environment(config)
-    fmc = FMC(dynamics_env)
-    trainer = FGZTrainer(minerl_env, agent, fmc, config=config)
+    data_handler = get_data_handler(config, agent)
 
-    # For an example, lets just run 100 steps of the environment for training
-    # obs = env.reset()
-    # for _ in range(100):
-    #     obs, reward, done, info = env.step(env.action_space.sample())
-    #     # Do your training here
-    #     if done:
-    #         break
+    # setup optimizer and learning rate schedule
+    dynamics_function_optimizer = torch.optim.Adam(
+        dynamics_env.dynamics_function.parameters(),
+        lr=0.001,
+        # weight_decay=1e-4,
+    )
+    lr_scheduler = None
+    # lr_scheduler = torch.optim.lr_scheduler.StepLR(dynamics_function_optimizer, step_size=10, gamma=0.95)
 
-    # # Save trained model to train/ directory
-    # # For a demonstration, we save some dummy data.
-    # # NOTE: All trained models should be placed under train directory!
-    # np.save("./train/parameters.npy", np.random.random((10,)))
+    # setup training/fmc objects
+    fmc = FMC(dynamics_env, freeze_best=True)
+    trainer = FGZTrainer(agent, fmc, data_handler, dynamics_function_optimizer, config=config)
 
-    # Close environment and clean up any bigger memory hogs.
-    # Otherwise, you might start running into memory issues.
-    minerl_env.close()
+    if config.use_wandb:
+        wandb.init(project="fgz-v0.1.1", config=config.asdict())
+
+    run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=batch_size)
 
 
 if __name__ == "__main__":
