@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 import logging
 import os
 
@@ -5,7 +6,6 @@ import numpy as np
 import gym
 import minerl
 import torch
-import wandb
 from tqdm import tqdm
 
 import coloredlogs
@@ -20,6 +20,11 @@ from fgz.training.fgz_trainer import FGZTrainer
 from fgz.data_utils.data_handler import DataHandler
 from vpt.run_agent import load_agent
 from fgz_config import FGZConfig
+
+try:
+    import wandb
+except ImportError:
+    pass  # optional
 
 coloredlogs.install(logging.DEBUG)
 
@@ -66,7 +71,7 @@ def run_training(trainer, lr_scheduler, train_steps: int, batch_size: int, check
         if lr_scheduler is not None:
             lr_scheduler.step()
 
-def main():
+def main(use_wandb: bool):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
@@ -82,7 +87,7 @@ def main():
     config = FGZConfig(
         enabled_tasks=enabled_tasks,
         disable_fmc_detection=True,  # if true, only classification will occur. 
-        use_wandb=False,
+        use_wandb=use_wandb,
         unroll_steps=64,
     )
 
@@ -111,4 +116,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser()
+
+    parser.add_argument("--use-wandb", action="store_true", help="Enables usage of weights and biases.")
+
+    args = parser.parse_args().__dict__
+    main(**args)
