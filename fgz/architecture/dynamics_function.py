@@ -81,7 +81,7 @@ class DynamicsFunction(torch.nn.Module):
 
         self.discriminator_head = torch.nn.Sequential(
             torch.nn.Linear(state_embedding_size, discriminator_classes),
-            torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
+            # torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
         )
 
     def dummy_initial_state(self):
@@ -111,13 +111,18 @@ class DynamicsFunction(torch.nn.Module):
 
         return new_state, discriminator_logits
 
-    def forward_action(self, state_embedding, action, use_discrim: bool = True):
+    def forward_action(self, state_embedding: torch.Tensor, action, use_discrim: bool = True):
         button_vec, camera_vec = vectorize_minerl_action(action)
+
+        device = state_embedding.device
+        button_vec = button_vec.unsqueeze(0).to(device)
+        camera_vec = camera_vec.unsqueeze(0).to(device)
+
         # TODO: handle GPU
         return self.forward(
-            state_embedding.cpu(),
-            button_vec.unsqueeze(0),
-            camera_vec.unsqueeze(0),
+            state_embedding,
+            button_vec,
+            camera_vec,
             use_discrim=use_discrim,
         )
 
@@ -147,7 +152,7 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1, state_embedding.shape
         self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size))
-        self.states[:] = state_embedding.cpu()
+        self.states[:] = state_embedding
 
     def batch_step(self, actions, freeze_mask):
         assert len(actions) == self.n

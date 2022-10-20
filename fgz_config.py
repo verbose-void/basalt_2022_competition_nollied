@@ -38,6 +38,8 @@ class FGZConfig:
     # when this is true, FMC will not be run and the discriminator will only try to discriminate between
     # the enabled tasks.
     disable_fmc_detection: bool = False
+    
+    verbose: bool = False
 
     num_walkers: int = 128
     unroll_steps: int = 8

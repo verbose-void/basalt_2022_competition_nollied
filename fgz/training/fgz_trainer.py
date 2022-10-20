@@ -43,6 +43,7 @@ class FGZTrainer:
         self.fmc = fmc
         self.config = config
 
+        self.dynamics_function = self.fmc.vec_env.dynamics_function.to(agent.device)
         self.dynamics_function_optimizer = dynamics_function_optimizer
 
     @property
@@ -97,11 +98,10 @@ class FGZTrainer:
 
     def get_expert_loss(self, full_window):
         _, root_embedding, _ = full_window[0]
-        dynamics: DynamicsFunction = self.fmc.vec_env.dynamics_function
 
         # each logit corresponds to one of the tasks. we can consider this to be our label
         target_logit = torch.tensor(
-            [self.current_trajectory_window.task_id], dtype=torch.long
+            [self.current_trajectory_window.task_id], dtype=torch.long, device=root_embedding.device,
         )
 
         # one-hot encode the task classificaiton target
@@ -118,7 +118,7 @@ class FGZTrainer:
         c = 0
         for i in range(self.fmc_steps_taken):
             _, _, action = full_window[i]
-            embedding, logits = dynamics.forward_action(embedding, action)
+            embedding, logits = self.dynamics_function.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
 
             preds = logits.argmax(1)
@@ -249,6 +249,10 @@ class FGZTrainer:
             self.expert_correct_frame_count / self.expert_total_frame_count
         )
 
+        include_consistency_loss = False
+        if include_consistency_loss:
+            total_loss = (total_loss + total_consistency_loss) / 2
+
         total_loss.backward()
         self.dynamics_function_optimizer.step()
 
@@ -267,17 +271,18 @@ class FGZTrainer:
                 }
             )
 
-        print("\n\n-------------------")
-        print("batch task ids:", task_ids)
-        print(
-            "loss:",
-            total_loss.item(),
-            "classification_loss:",
-            total_classification_loss.item(),
-            "consistency loss:",
-            total_consistency_loss.item(),
-        )
-        print("accuracy:", expert_classification_accuracy)
+        if self.config.verbose:
+            print("\n\n-------------------")
+            print("batch task ids:", task_ids)
+            print(
+                "loss:",
+                total_loss.item(),
+                "classification_loss:",
+                total_classification_loss.item(),
+                "consistency loss:",
+                total_consistency_loss.item(),
+            )
+            print("accuracy:", expert_classification_accuracy)
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
