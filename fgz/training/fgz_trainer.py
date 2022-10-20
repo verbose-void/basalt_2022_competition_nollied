@@ -249,6 +249,10 @@ class FGZTrainer:
             self.expert_correct_frame_count / self.expert_total_frame_count
         )
 
+        include_consistency_loss = False
+        if include_consistency_loss:
+            total_loss = (total_loss + total_consistency_loss) / 2
+
         total_loss.backward()
         self.dynamics_function_optimizer.step()
 
@@ -267,17 +271,18 @@ class FGZTrainer:
                 }
             )
 
-        print("\n\n-------------------")
-        print("batch task ids:", task_ids)
-        print(
-            "loss:",
-            total_loss.item(),
-            "classification_loss:",
-            total_classification_loss.item(),
-            "consistency loss:",
-            total_consistency_loss.item(),
-        )
-        print("accuracy:", expert_classification_accuracy)
+        if self.config.verbose:
+            print("\n\n-------------------")
+            print("batch task ids:", task_ids)
+            print(
+                "loss:",
+                total_loss.item(),
+                "classification_loss:",
+                total_classification_loss.item(),
+                "consistency loss:",
+                total_consistency_loss.item(),
+            )
+            print("accuracy:", expert_classification_accuracy)
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:

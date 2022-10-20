@@ -81,7 +81,7 @@ class DynamicsFunction(torch.nn.Module):
 
         self.discriminator_head = torch.nn.Sequential(
             torch.nn.Linear(state_embedding_size, discriminator_classes),
-            torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
+            # torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
         )
 
     def dummy_initial_state(self):
