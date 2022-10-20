@@ -23,6 +23,9 @@ ENV FORCE_CUDA="1"
 # Use MineRL environment
 SHELL ["conda", "run", "-n", "minerl", "/bin/bash", "-c"]
 
+# bring in the external libs directory
+COPY --chown=1001:1001 ./external_libs /home/aicrowd
+
 # Conda environment update
 COPY environment.yml environment.yml
 RUN conda env update --name minerl -f environment.yml --prune
