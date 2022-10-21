@@ -76,10 +76,11 @@ class DynamicsFunction(torch.nn.Module):
             )
         self.embedder = torch.nn.Sequential(
             *embeds,
-            torch.nn.Sigmoid(),  # prevent discriminator from exploiting FMC similarity measure.
+            # torch.nn.Sigmoid(),  # prevent discriminator from exploiting FMC similarity measure.
         )
 
         self.discriminator_head = torch.nn.Sequential(
+            torch.nn.ReLU(),
             torch.nn.Linear(state_embedding_size, discriminator_classes),
             # torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
         )
@@ -118,7 +119,6 @@ class DynamicsFunction(torch.nn.Module):
         button_vec = button_vec.unsqueeze(0).to(device)
         camera_vec = camera_vec.unsqueeze(0).to(device)
 
-        # TODO: handle GPU
         return self.forward(
             state_embedding,
             button_vec,

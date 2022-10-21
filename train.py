@@ -38,6 +38,7 @@ def get_agent(config: FGZConfig):
 def get_dynamics_function(config: FGZConfig):
     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
     return DynamicsFunction(
+        state_embedding_size=2048,  # TODO: make automatic
         discriminator_classes=config.num_discriminator_classes,
         embedder_layers=4,
         button_features=128,
@@ -78,17 +79,20 @@ def main(use_wandb: bool):
     All trained models should be placed under "train" directory!
     """
 
-    train_steps = 100
-    batch_size = 8
+    train_steps = 3000
+    batch_size = 32
 
-    enabled_tasks = [2, 3]  # cave and waterfall 
-    # enabled_tasks = [0, 1, 2, 3]  # all 
+    # enabled_tasks = [2, 3]  # cave and waterfall 
+    enabled_tasks = [0, 1, 2, 3]  # all 
 
     config = FGZConfig(
+        model_filename="foundation-model-2x.model",
+        weights_filename="rl-from-early-game-2x.weights",
         enabled_tasks=enabled_tasks,
         disable_fmc_detection=True,  # if true, only classification will occur. 
         use_wandb=use_wandb,
-        unroll_steps=64,
+        verbose=True,
+        unroll_steps=4,
     )
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
@@ -99,7 +103,7 @@ def main(use_wandb: bool):
     # setup optimizer and learning rate schedule
     dynamics_function_optimizer = torch.optim.Adam(
         dynamics_env.dynamics_function.parameters(),
-        lr=0.001,
+        lr=0.00008,
         # weight_decay=1e-4,
     )
     lr_scheduler = None
@@ -110,7 +114,7 @@ def main(use_wandb: bool):
     trainer = FGZTrainer(agent, fmc, data_handler, dynamics_function_optimizer, config=config)
 
     if config.use_wandb:
-        wandb.init(project="fgz-v0.1.1", config=config.asdict())
+        wandb.init(project="task-classification", config=config.asdict())
 
     run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=batch_size)
 
