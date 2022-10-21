@@ -16,9 +16,9 @@ from fgz.architecture.dynamics_function import (
     DynamicsFunction,
     MineRLDynamicsEnvironment,
 )
+from fgz.loading import get_agent
 from fgz.training.fgz_trainer import FGZTrainer
 from fgz.data_utils.data_handler import DataHandler
-from vpt.run_agent import load_agent
 from fgz_config import FGZConfig
 
 try:
@@ -27,12 +27,6 @@ except ImportError:
     pass  # optional
 
 coloredlogs.install(logging.DEBUG)
-
-
-def get_agent(config: FGZConfig):
-    print("Loading model", config.model_filename)
-    print("with weights", config.weights_filename)
-    return load_agent(config.model_path, config.weights_path)
 
 
 def get_dynamics_function(config: FGZConfig):
@@ -63,14 +57,20 @@ def get_data_handler(config: FGZConfig, agent):
 
 def run_training(trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10):
 
+    best_acc = 0.0
+
     for train_step in tqdm(range(train_steps), desc="Training"):
-        trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
+        acc = trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
 
         if train_step % checkpoint_every == 0:
-            trainer.save("./train/fgz_dynamics_checkpoint.pth")
+            trainer.save("./train")
 
         if lr_scheduler is not None:
             lr_scheduler.step()
+
+        if acc > best_acc:
+            best_acc = acc
+            trainer.save("./train", f"./train/best_acc_{trainer.run_name}.pth")
 
 def main(use_wandb: bool):
     """
