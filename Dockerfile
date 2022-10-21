@@ -24,14 +24,15 @@ ENV FORCE_CUDA="1"
 SHELL ["conda", "run", "-n", "minerl", "/bin/bash", "-c"]
 
 # bring in the external libs directory
+COPY --chown=1001:1001 ./requirements.txt /home/aicrowd/requirements.txt
 COPY --chown=1001:1001 ./external_libs/ /home/aicrowd/external_libs/
 
 # Conda environment update
 COPY environment.yml environment.yml
 RUN conda env update --name minerl -f environment.yml --prune
 
-RUN pip install -e /home/aicrowd/external_libs/vpt/
-RUN pip install -e /home/aicrowd/external_libs/fractal-zero/
+# RUN pip install -e /home/aicrowd/external_libs/vpt/
+# RUN pip install -e /home/aicrowd/external_libs/fractal-zero/
 
 # Copy the files
 COPY --chown=1001:1001 . /home/aicrowd

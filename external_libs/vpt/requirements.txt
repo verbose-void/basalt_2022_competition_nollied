@@ -1,6 +1,0 @@
-torch
-gym
-gym3
-attrs
-opencv-python
-minerl
