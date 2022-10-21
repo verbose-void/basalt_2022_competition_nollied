@@ -12,11 +12,7 @@ from fractal_zero.utils import mean_min_max_dict
 class FractalZeroTrainer:
     lr_scheduler: torch.optim.lr_scheduler._LRScheduler = None
 
-    def __init__(
-        self,
-        fractal_zero: FractalZero,
-        data_handler: DataHandler,
-    ):
+    def __init__(self, fractal_zero: FractalZero, data_handler: DataHandler):
         self.config = fractal_zero.config
         self.data_handler = data_handler
         self.fractal_zero = fractal_zero
@@ -116,8 +112,7 @@ class FractalZeroTrainer:
     def _calculate_losses(self):
         auxiliary_loss = (
             self.dynamics_model.auxiliary_loss(
-                self.unrolled_auxiliaries,
-                self.target_auxiliaries,
+                self.unrolled_auxiliaries, self.target_auxiliaries
             )
             / self.config.unroll_steps
         )

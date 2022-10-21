@@ -183,7 +183,9 @@ def test_cloning(with_freeze, prune, disable_cloning):
         expected_score = 0
         for state, action in path:
             assert state.observation == expected_score
-            expected_score += action  # yes, we're checking this because clones have the potential to disrupt in the case of a bug.
+            expected_score += (
+                action
+            )  # yes, we're checking this because clones have the potential to disrupt in the case of a bug.
         expected_score += path.ordered_states[-1].reward
         assert (
             expected_score == path.total_reward

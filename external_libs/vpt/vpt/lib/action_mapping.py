@@ -64,7 +64,9 @@ class ActionMapping(abc.ABC):
         """Return the zero or null action for this action space"""
         pass
 
-    def factored_buttons_to_groups(self, ac_buttons: np.ndarray, button_group: List[str]) -> List[str]:
+    def factored_buttons_to_groups(
+        self, ac_buttons: np.ndarray, button_group: List[str]
+    ) -> List[str]:
         """For a mutually exclusive group of buttons in button_group, find which option
         in the group was chosen. Assumes that each button group has the option of 'none'
         meaning that no button in the group was pressed.
@@ -80,7 +82,9 @@ class ActionMapping(abc.ABC):
         assert ac_buttons.shape[1] == len(
             Buttons.ALL
         ), f"There should be {len(Buttons.ALL)} buttons in the factored buttons space"
-        assert button_group[0] == "none", "This function only works if 'none' is in button_group"
+        assert (
+            button_group[0] == "none"
+        ), "This function only works if 'none' is in button_group"
         # Actions in ac_buttons with order according to button_group
         group_indices = [Buttons.ALL.index(b) for b in button_group if b != "none"]
         ac_choices = ac_buttons[:, group_indices]
@@ -96,11 +100,15 @@ class ActionMapping(abc.ABC):
         # we give priority to the button later in the group. E.g. if hotbar.1 and hotbar.2 are pressed during the same
         # timestep, hotbar.2 is marked as pressed
         for index, action in zip(ac_non_zero[0], ac_non_zero[1]):
-            ac_choice[index] = button_group[action + 1]  # the zero'th index will mean no button pressed
+            ac_choice[index] = button_group[
+                action + 1
+            ]  # the zero'th index will mean no button pressed
         return ac_choice
+
 
 class IDMActionMapping(ActionMapping):
     """For IDM, but essentially this is just an identity mapping"""
+
     def from_factored(self, ac: Dict) -> Dict:
         return ac
 
@@ -117,6 +125,7 @@ class IDMActionMapping(ActionMapping):
     def get_zero_action(self):
         raise NotImplementedError()
 
+
 class CameraHierarchicalMapping(ActionMapping):
     """Buttons are joint as in ButtonsJointMapping, but now a camera on/off meta action is added into this joint space.
     When this meta action is triggered, the separate camera head chooses a camera action which is also now a joint space.
@@ -127,9 +136,15 @@ class CameraHierarchicalMapping(ActionMapping):
     # Add camera meta action to BUTTONS_GROUPS
     BUTTONS_GROUPS = ActionMapping.BUTTONS_GROUPS.copy()
     BUTTONS_GROUPS["camera"] = ["none", "camera"]
-    BUTTONS_COMBINATIONS = list(itertools.product(*BUTTONS_GROUPS.values())) + ["inventory"]
-    BUTTONS_COMBINATION_TO_IDX = {comb: i for i, comb in enumerate(BUTTONS_COMBINATIONS)}
-    BUTTONS_IDX_TO_COMBINATION = {i: comb for i, comb in enumerate(BUTTONS_COMBINATIONS)}
+    BUTTONS_COMBINATIONS = list(itertools.product(*BUTTONS_GROUPS.values())) + [
+        "inventory"
+    ]
+    BUTTONS_COMBINATION_TO_IDX = {
+        comb: i for i, comb in enumerate(BUTTONS_COMBINATIONS)
+    }
+    BUTTONS_IDX_TO_COMBINATION = {
+        i: comb for i, comb in enumerate(BUTTONS_COMBINATIONS)
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -138,22 +153,34 @@ class CameraHierarchicalMapping(ActionMapping):
             camera_y=[f"camera_y{i}" for i in range(self.n_camera_bins)],
         )
         self.camera_combinations = list(itertools.product(*self.camera_groups.values()))
-        self.camera_combination_to_idx = {comb: i for i, comb in enumerate(self.camera_combinations)}
-        self.camera_idx_to_combination = {i: comb for i, comb in enumerate(self.camera_combinations)}
+        self.camera_combination_to_idx = {
+            comb: i for i, comb in enumerate(self.camera_combinations)
+        }
+        self.camera_idx_to_combination = {
+            i: comb for i, comb in enumerate(self.camera_combinations)
+        }
         self.camera_null_idx = self.camera_combination_to_idx[
             (f"camera_x{self.camera_null_bin}", f"camera_y{self.camera_null_bin}")
         ]
         self._null_action = {
-            "buttons": self.BUTTONS_COMBINATION_TO_IDX[tuple("none" for _ in range(len(self.BUTTONS_GROUPS)))]
+            "buttons": self.BUTTONS_COMBINATION_TO_IDX[
+                tuple("none" for _ in range(len(self.BUTTONS_GROUPS)))
+            ]
         }
         self._precompute_to_factored()
 
     def _precompute_to_factored(self):
         """Precompute the joint action -> factored action matrix."""
         button_dim = self.stats_ac_space["buttons"].size
-        self.BUTTON_IDX_TO_FACTORED = np.zeros((len(self.BUTTONS_IDX_TO_COMBINATION), button_dim), dtype=int)
-        self.BUTTON_IDX_TO_CAMERA_META_OFF = np.zeros((len(self.BUTTONS_IDX_TO_COMBINATION)), dtype=bool)
-        self.CAMERA_IDX_TO_FACTORED = np.zeros((len(self.camera_idx_to_combination), 2), dtype=int)
+        self.BUTTON_IDX_TO_FACTORED = np.zeros(
+            (len(self.BUTTONS_IDX_TO_COMBINATION), button_dim), dtype=int
+        )
+        self.BUTTON_IDX_TO_CAMERA_META_OFF = np.zeros(
+            (len(self.BUTTONS_IDX_TO_COMBINATION)), dtype=bool
+        )
+        self.CAMERA_IDX_TO_FACTORED = np.zeros(
+            (len(self.camera_idx_to_combination), 2), dtype=int
+        )
 
         # Pre compute Buttons
         for jnt_ac, button_comb in self.BUTTONS_IDX_TO_COMBINATION.items():
@@ -182,11 +209,15 @@ class CameraHierarchicalMapping(ActionMapping):
         assert ac["buttons"].ndim == 2, f"bad buttons label, {ac['buttons']}"
         # Get button choices for everything but camera
         choices_by_group = OrderedDict(
-            (k, self.factored_buttons_to_groups(ac["buttons"], v)) for k, v in self.BUTTONS_GROUPS.items() if k != "camera"
+            (k, self.factored_buttons_to_groups(ac["buttons"], v))
+            for k, v in self.BUTTONS_GROUPS.items()
+            if k != "camera"
         )
         # Set camera "on off" action based on whether non-null camera action was given
         camera_is_null = np.all(ac["camera"] == self.camera_null_bin, axis=1)
-        choices_by_group["camera"] = ["none" if is_null else "camera" for is_null in camera_is_null]
+        choices_by_group["camera"] = [
+            "none" if is_null else "camera" for is_null in camera_is_null
+        ]
 
         new_button_ac = []
         new_camera_ac = []
@@ -226,10 +257,13 @@ class CameraHierarchicalMapping(ActionMapping):
 
     def get_action_space_update(self):
         return {
-            "camera": TensorType(shape=(1,), eltype=Discrete(len(self.camera_combinations))),
-            "buttons": TensorType(shape=(1,), eltype=Discrete(len(self.BUTTONS_COMBINATIONS))),
+            "camera": TensorType(
+                shape=(1,), eltype=Discrete(len(self.camera_combinations))
+            ),
+            "buttons": TensorType(
+                shape=(1,), eltype=Discrete(len(self.BUTTONS_COMBINATIONS))
+            ),
         }
 
     def get_zero_action(self):
         return self._null_action
-

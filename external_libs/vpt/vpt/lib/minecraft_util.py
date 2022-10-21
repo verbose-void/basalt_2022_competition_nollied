@@ -5,8 +5,11 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
-from vpt.lib.action_head import (CategoricalActionHead, DiagGaussianActionHead,
-                             DictActionHead)
+from vpt.lib.action_head import (
+    CategoricalActionHead,
+    DiagGaussianActionHead,
+    DictActionHead,
+)
 
 
 def store_args(method):
@@ -59,14 +62,18 @@ def get_norm_entropy_from_cat_head(module, name, masks, logits):
     return norm_entropy, count
 
 
-def get_norm_cat_entropy(module, masks, logits, template) -> Tuple[torch.Tensor, torch.Tensor]:
+def get_norm_cat_entropy(
+    module, masks, logits, template
+) -> Tuple[torch.Tensor, torch.Tensor]:
     entropy_sum = torch.zeros_like(template, dtype=torch.float)
     counts = torch.zeros_like(template, dtype=torch.int)
     for k, subhead in module.items():
         if isinstance(subhead, DictActionHead):
             entropy, count = get_norm_cat_entropy(subhead, masks, logits[k], template)
         elif isinstance(subhead, CategoricalActionHead):
-            entropy, count = get_norm_entropy_from_cat_head(subhead, k, masks, logits[k])
+            entropy, count = get_norm_entropy_from_cat_head(
+                subhead, k, masks, logits[k]
+            )
         else:
             continue
         entropy_sum += entropy

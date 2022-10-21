@@ -14,7 +14,11 @@ class ScaledMSEHead(nn.Module):
     """
 
     def __init__(
-        self, input_size: int, output_size: int, norm_type: Optional[str] = "ewma", norm_kwargs: Optional[Dict] = None
+        self,
+        input_size: int,
+        output_size: int,
+        norm_type: Optional[str] = "ewma",
+        norm_kwargs: Optional[Dict] = None,
     ):
         super().__init__()
         self.input_size = input_size

@@ -11,7 +11,12 @@ from fractal_zero.utils import cloning_primitive
 
 class StateNode:
     def __init__(
-        self, observation, reward, info, num_child_walkers: int = 1, terminal: bool = False
+        self,
+        observation,
+        reward,
+        info,
+        num_child_walkers: int = 1,
+        terminal: bool = False,
     ):
         self.id = uuid4()
 
@@ -195,7 +200,9 @@ class GameTree:
         )
 
         # TODO: how can we detect duplicate observations / action transitions to save memory? (might not be super important)
-        it = zip(self.walker_paths, actions, new_observations, rewards, infos, freeze_mask)
+        it = zip(
+            self.walker_paths, actions, new_observations, rewards, infos, freeze_mask
+        )
         for path, action, new_observation, reward, info, frozen in it:
             if frozen:
                 continue
@@ -243,7 +250,7 @@ class GameTree:
     def get_total_rewards(self):
         return torch.tensor([p.total_reward for p in self.walker_paths], dtype=float)
 
-    def render(self, label_type: str="reward"):
+    def render(self, label_type: str = "reward"):
         colors = []
         labels = {}
         for node in self.g.nodes:
@@ -259,5 +266,7 @@ class GameTree:
             else:
                 raise NotImplementedError(label_type)
 
-        nx.draw(self.g, labels=labels, with_labels=True, node_color=colors, node_size=80)
+        nx.draw(
+            self.g, labels=labels, with_labels=True, node_color=colors, node_size=80
+        )
         plt.show()

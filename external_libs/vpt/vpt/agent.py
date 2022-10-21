@@ -78,7 +78,7 @@ TARGET_ACTION_SPACE = {
     "sneak": spaces.Discrete(2),
     "sprint": spaces.Discrete(2),
     "swapHands": spaces.Discrete(2),
-    "use": spaces.Discrete(2)
+    "use": spaces.Discrete(2),
 }
 
 
@@ -91,11 +91,15 @@ def validate_env(env):
             raise ValueError(f"MineRL environment setting {key} does not match {value}")
     action_names = set(env.action_space.spaces.keys())
     if action_names != set(TARGET_ACTION_SPACE.keys()):
-        raise ValueError(f"MineRL action space does match. Expected actions {set(TARGET_ACTION_SPACE.keys())}")
+        raise ValueError(
+            f"MineRL action space does match. Expected actions {set(TARGET_ACTION_SPACE.keys())}"
+        )
 
     for ac_space_name, ac_space_space in TARGET_ACTION_SPACE.items():
         if env.action_space.spaces[ac_space_name] != ac_space_space:
-            raise ValueError(f"MineRL action space setting {ac_space_name} does not match {ac_space_space}")
+            raise ValueError(
+                f"MineRL action space setting {ac_space_name} does not match {ac_space_space}"
+            )
 
 
 def resize_image(img, target_resolution):
@@ -122,7 +126,11 @@ class MineRLAgent:
         if pi_head_kwargs is None:
             pi_head_kwargs = PI_HEAD_KWARGS
 
-        agent_kwargs = dict(policy_kwargs=policy_kwargs, pi_head_kwargs=pi_head_kwargs, action_space=action_space)
+        agent_kwargs = dict(
+            policy_kwargs=policy_kwargs,
+            pi_head_kwargs=pi_head_kwargs,
+            action_space=action_space,
+        )
 
         self.policy = MinecraftAgentPolicy(**agent_kwargs).to(device)
         self.reset()
@@ -130,7 +138,9 @@ class MineRLAgent:
 
     def load_weights(self, path):
         """Load model weights from a path, and reset hidden state"""
-        self.policy.load_state_dict(th.load(path, map_location=self.device), strict=False)
+        self.policy.load_state_dict(
+            th.load(path, map_location=self.device), strict=False
+        )
         self.reset()
 
     def reset(self):
@@ -156,13 +166,15 @@ class MineRLAgent:
         if isinstance(action["buttons"], th.Tensor):
             action = {
                 "buttons": agent_action["buttons"].cpu().numpy(),
-                "camera": agent_action["camera"].cpu().numpy()
+                "camera": agent_action["camera"].cpu().numpy(),
             }
         minerl_action = self.action_mapper.to_factored(action)
         minerl_action_transformed = self.action_transformer.policy2env(minerl_action)
         return minerl_action_transformed
 
-    def _env_action_to_agent(self, minerl_action_transformed, to_torch=False, check_if_null=False):
+    def _env_action_to_agent(
+        self, minerl_action_transformed, to_torch=False, check_if_null=False
+    ):
         """
         Turn action from MineRL to model's action.
 
@@ -175,7 +187,9 @@ class MineRLAgent:
         """
         minerl_action = self.action_transformer.env2policy(minerl_action_transformed)
         if check_if_null:
-            if np.all(minerl_action["buttons"] == 0) and np.all(minerl_action["camera"] == self.action_transformer.camera_zero_bin):
+            if np.all(minerl_action["buttons"] == 0) and np.all(
+                minerl_action["camera"] == self.action_transformer.camera_zero_bin
+            ):
                 return None
 
         # Add batch dims if not existant
@@ -198,8 +212,7 @@ class MineRLAgent:
         # boundaries, but we are only using this for predicting (for now),
         # so we do not hassle with it yet.
         agent_action, self.hidden_state, _ = self.policy.act(
-            agent_input, self._dummy_first, self.hidden_state,
-            stochastic=True
+            agent_input, self._dummy_first, self.hidden_state, stochastic=True
         )
         minerl_action = self._agent_action_to_env(agent_action)
         return minerl_action
@@ -210,7 +223,12 @@ class MineRLAgent:
         # so we do not hassle with it yet.  <--- TODO (DYLLAN ADDRESS THIS!)
 
         agent_input = self._env_obs_to_agent(minerl_obs)
-        ret = self.policy.get_output_for_observation(agent_input, self.hidden_state, self._dummy_first, return_embedding=return_embedding)
+        ret = self.policy.get_output_for_observation(
+            agent_input,
+            self.hidden_state,
+            self._dummy_first,
+            return_embedding=return_embedding,
+        )
         if return_embedding:
             embedding, state_out = ret
             self.hidden_state = state_out  # TODO: should we do this?

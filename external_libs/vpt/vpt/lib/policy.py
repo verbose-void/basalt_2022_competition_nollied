@@ -31,8 +31,12 @@ class ImgPreprocessing(nn.Module):
         self.img_mean = None
         if img_statistics is not None:
             img_statistics = dict(**np.load(img_statistics))
-            self.img_mean = nn.Parameter(th.Tensor(img_statistics["mean"]), requires_grad=False)
-            self.img_std = nn.Parameter(th.Tensor(img_statistics["std"]), requires_grad=False)
+            self.img_mean = nn.Parameter(
+                th.Tensor(img_statistics["mean"]), requires_grad=False
+            )
+            self.img_std = nn.Parameter(
+                th.Tensor(img_statistics["std"]), requires_grad=False
+            )
         else:
             self.ob_scale = 255.0 if scale_img else 1.0
 
@@ -70,10 +74,7 @@ class ImgObsProcess(nn.Module):
             **kwargs,
         )
         self.linear = FanInInitReLULayer(
-            cnn_outsize,
-            output_size,
-            layer_type="linear",
-            **dense_init_norm_kwargs,
+            cnn_outsize, output_size, layer_type="linear", **dense_init_norm_kwargs
         )
 
     def forward(self, img):
@@ -151,7 +152,9 @@ class MinecraftPolicy(nn.Module):
             self.dense_init_norm_kwargs["layer_norm"] = True
 
         # Setup inputs
-        self.img_preprocess = ImgPreprocessing(img_statistics=img_statistics, scale_img=scale_input_img)
+        self.img_preprocess = ImgPreprocessing(
+            img_statistics=img_statistics, scale_img=scale_input_img
+        )
         self.img_process = ImgObsProcess(
             cnn_outsize=256,
             output_size=hidsize,
@@ -184,7 +187,9 @@ class MinecraftPolicy(nn.Module):
             n_block=n_recurrence_layers,
         )
 
-        self.lastlayer = FanInInitReLULayer(hidsize, hidsize, layer_type="linear", **self.dense_init_norm_kwargs)
+        self.lastlayer = FanInInitReLULayer(
+            hidsize, hidsize, layer_type="linear", **self.dense_init_norm_kwargs
+        )
         self.final_ln = th.nn.LayerNorm(hidsize)
 
     def output_latent_size(self):
@@ -205,7 +210,9 @@ class MinecraftPolicy(nn.Module):
 
         if self.recurrent_layer is not None:
             if last_action is not None:
-                raise NotImplementedError("TODO! handle the last action being passed along")
+                raise NotImplementedError(
+                    "TODO! handle the last action being passed along"
+                )
 
             x, state_out = self.recurrent_layer(x, first, state_in)
         else:
@@ -235,10 +242,19 @@ class MinecraftAgentPolicy(nn.Module):
         self.action_space = action_space
 
         self.value_head = self.make_value_head(self.net.output_latent_size())
-        self.pi_head = self.make_action_head(self.net.output_latent_size(), **pi_head_kwargs)
+        self.pi_head = self.make_action_head(
+            self.net.output_latent_size(), **pi_head_kwargs
+        )
 
-    def make_value_head(self, v_out_size: int, norm_type: str = "ewma", norm_kwargs: Optional[Dict] = None):
-        return ScaledMSEHead(v_out_size, 1, norm_type=norm_type, norm_kwargs=norm_kwargs)
+    def make_value_head(
+        self,
+        v_out_size: int,
+        norm_type: str = "ewma",
+        norm_kwargs: Optional[Dict] = None,
+    ):
+        return ScaledMSEHead(
+            v_out_size, 1, norm_type=norm_type, norm_kwargs=norm_kwargs
+        )
 
     def make_action_head(self, pi_out_size: int, **pi_head_opts):
         return make_action_head(self.action_space, pi_out_size, **pi_head_opts)
@@ -252,7 +268,9 @@ class MinecraftAgentPolicy(nn.Module):
         self.pi_head.reset_parameters()
         self.value_head.reset_parameters()
 
-    def forward(self, obs, first: th.Tensor, state_in, return_embedding=False, last_action=None):
+    def forward(
+        self, obs, first: th.Tensor, state_in, return_embedding=False, last_action=None
+    ):
         if isinstance(obs, dict):
             # We don't want to mutate the obs input.
             obs = obs.copy()
@@ -264,7 +282,9 @@ class MinecraftAgentPolicy(nn.Module):
         else:
             mask = None
 
-        (pi_h, v_h), state_out = self.net(obs, state_in, context={"first": first}, last_action=last_action)
+        (pi_h, v_h), state_out = self.net(
+            obs, state_in, context={"first": first}, last_action=last_action
+        )
 
         if return_embedding:
             return pi_h, state_out
@@ -306,7 +326,9 @@ class MinecraftAgentPolicy(nn.Module):
         obs = tree_map(lambda x: x.unsqueeze(1), obs)
         first = first.unsqueeze(1)
 
-        ret = self(obs=obs, first=first, state_in=state_in, return_embedding=return_embedding)
+        ret = self(
+            obs=obs, first=first, state_in=state_in, return_embedding=return_embedding
+        )
         if return_embedding:
             embedding, state_out = ret
             return embedding, state_out
@@ -315,7 +337,15 @@ class MinecraftAgentPolicy(nn.Module):
         return pd, self.value_head.denormalize(vpred)[:, 0], state_out
 
     @th.no_grad()
-    def act(self, obs, first, state_in, stochastic: bool = True, taken_action=None, return_pd=False):
+    def act(
+        self,
+        obs,
+        first,
+        state_in,
+        stochastic: bool = True,
+        taken_action=None,
+        return_pd=False,
+    ):
         # We need to add a fictitious time dimension everywhere
         obs = tree_map(lambda x: x.unsqueeze(1), obs)
         first = first.unsqueeze(1)
@@ -330,7 +360,10 @@ class MinecraftAgentPolicy(nn.Module):
         assert not th.isnan(log_prob).any()
 
         # After unsqueezing, squeeze back to remove fictitious time dimension
-        result = {"log_prob": log_prob[:, 0], "vpred": self.value_head.denormalize(vpred)[:, 0]}
+        result = {
+            "log_prob": log_prob[:, 0],
+            "vpred": self.value_head.denormalize(vpred)[:, 0],
+        }
         if return_pd:
             result["pd"] = tree_map(lambda x: x[:, 0], pd)
         ac = tree_map(lambda x: x[:, 0], ac)
@@ -355,12 +388,7 @@ class InverseActionNet(MinecraftPolicy):
         conv3d_params: PRE impala 3D CNN params. They are just passed into th.nn.Conv3D.
     """
 
-    def __init__(
-        self,
-        hidsize=512,
-        conv3d_params=None,
-        **MCPoliy_kwargs,
-    ):
+    def __init__(self, hidsize=512, conv3d_params=None, **MCPoliy_kwargs):
         super().__init__(
             hidsize=hidsize,
             # If we're using 3dconv, then we normalize entire impala otherwise don't
@@ -414,12 +442,7 @@ class InverseActionNet(MinecraftPolicy):
 
 
 class InverseActionPolicy(nn.Module):
-    def __init__(
-        self,
-        action_space,
-        pi_head_kwargs=None,
-        idm_net_kwargs=None,
-    ):
+    def __init__(self, action_space, pi_head_kwargs=None, idm_net_kwargs=None):
         super().__init__()
         self.action_space = action_space
 
@@ -451,17 +474,14 @@ class InverseActionPolicy(nn.Module):
         else:
             mask = None
 
-        (pi_h, _), state_out = self.net(obs, state_in=state_in, context={"first": first}, **kwargs)
+        (pi_h, _), state_out = self.net(
+            obs, state_in=state_in, context={"first": first}, **kwargs
+        )
         pi_logits = self.pi_head(pi_h, mask=mask)
         return (pi_logits, None, None), state_out
 
     @th.no_grad()
-    def predict(
-        self,
-        obs,
-        deterministic: bool = True,
-        **kwargs,
-    ):
+    def predict(self, obs, deterministic: bool = True, **kwargs):
         (pd, _, _), state_out = self(obs=obs, **kwargs)
 
         ac = self.pi_head.sample(pd, deterministic=deterministic)

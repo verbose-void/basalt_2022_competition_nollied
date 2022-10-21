@@ -35,20 +35,8 @@ class DataHandler:
         actions = np.zeros(
             (batch_size, num_frames, *self.config.action_shape), dtype=float
         )
-        auxiliaries = np.zeros(
-            (
-                batch_size,
-                num_frames,
-            ),
-            dtype=float,
-        )
-        values = np.zeros(
-            (
-                batch_size,
-                num_frames,
-            ),
-            dtype=float,
-        )
+        auxiliaries = np.zeros((batch_size, num_frames), dtype=float)
+        values = np.zeros((batch_size, num_frames), dtype=float)
 
         total_empty_frames = 0
         for i in range(batch_size):

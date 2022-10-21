@@ -67,18 +67,9 @@ class FMC:
     def reset(self):
         # TODO: explain all these variables
         # NOTE: they should exist on the CPU.
-        self.value_sum_buffer = torch.zeros(
-            size=(self.num_walkers, 1),
-            dtype=float,
-        )
-        self.visit_buffer = torch.zeros(
-            size=(self.num_walkers, 1),
-            dtype=int,
-        )
-        self.clone_receives = torch.zeros(
-            size=(self.num_walkers, 1),
-            dtype=int,
-        )
+        self.value_sum_buffer = torch.zeros(size=(self.num_walkers, 1), dtype=float)
+        self.visit_buffer = torch.zeros(size=(self.num_walkers, 1), dtype=int)
+        self.clone_receives = torch.zeros(size=(self.num_walkers, 1), dtype=int)
         self.cumulative_rewards = torch.zeros(size=(self.num_walkers, 1), dtype=float)
         self.root_actions = None
 
@@ -212,7 +203,7 @@ class FMC:
 
         rel_exploits = _relativize_vector(exploit).squeeze(-1).cpu()
         rel_distances = _relativize_vector(self.distances).cpu()
-        self.virtual_rewards = (rel_exploits**self.config.balance) * rel_distances
+        self.virtual_rewards = (rel_exploits ** self.config.balance) * rel_distances
 
         self.log(
             {
@@ -252,12 +243,7 @@ class FMC:
 
         self._determine_clone_receives()
 
-        self.log(
-            {
-                "fmc/num_cloned": self.clone_mask.sum(),
-            },
-            commit=False,
-        )
+        self.log({"fmc/num_cloned": self.clone_mask.sum()}, commit=False)
 
     @torch.no_grad()
     def _prepare_clone_variables(self):

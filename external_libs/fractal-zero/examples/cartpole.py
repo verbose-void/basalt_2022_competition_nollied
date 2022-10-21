@@ -81,10 +81,7 @@ def train_cartpole(alphazero_style: bool, use_wandb: bool):
 
     data_handler = DataHandler(config)
     fractal_zero = FractalZero(config)
-    trainer = FractalZeroTrainer(
-        fractal_zero,
-        data_handler,
-    )
+    trainer = FractalZeroTrainer(fractal_zero, data_handler)
 
     for i in tqdm(
         range(config.num_games),

@@ -27,14 +27,11 @@ class FractalZero(torch.nn.Module):
         # TODO: explain
         if self.fmc_config.search_using_actual_environment:
             self.vectorized_environment = RayVectorizedEnvironment(
-                self.actual_env,
-                n=self.fmc_config.num_walkers,
+                self.actual_env, n=self.fmc_config.num_walkers
             )
         else:
             self.vectorized_environment = VectorizedDynamicsModelEnvironment(
-                self.actual_env,
-                n=self.fmc_config.num_walkers,
-                joint_model=self.model,
+                self.actual_env, n=self.fmc_config.num_walkers, joint_model=self.model
             )
 
     @property
@@ -58,10 +55,7 @@ class FractalZero(torch.nn.Module):
 
         raise NotImplementedError("Action prediction not yet working.")
 
-    def play_game(
-        self,
-        render: bool = False,
-    ):
+    def play_game(self, render: bool = False):
         obs = self.actual_env.reset()
         game_history = GameHistory(obs)
 

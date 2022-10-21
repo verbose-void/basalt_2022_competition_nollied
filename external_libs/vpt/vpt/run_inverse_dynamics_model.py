@@ -15,26 +15,26 @@ from vpt.inverse_dynamics_model import IDMAgent
 
 
 KEYBOARD_BUTTON_MAPPING = {
-    "key.keyboard.escape" :"ESC",
-    "key.keyboard.s" :"back",
-    "key.keyboard.q" :"drop",
-    "key.keyboard.w" :"forward",
-    "key.keyboard.1" :"hotbar.1",
-    "key.keyboard.2" :"hotbar.2",
-    "key.keyboard.3" :"hotbar.3",
-    "key.keyboard.4" :"hotbar.4",
-    "key.keyboard.5" :"hotbar.5",
-    "key.keyboard.6" :"hotbar.6",
-    "key.keyboard.7" :"hotbar.7",
-    "key.keyboard.8" :"hotbar.8",
-    "key.keyboard.9" :"hotbar.9",
-    "key.keyboard.e" :"inventory",
-    "key.keyboard.space" :"jump",
-    "key.keyboard.a" :"left",
-    "key.keyboard.d" :"right",
-    "key.keyboard.left.shift" :"sneak",
-    "key.keyboard.left.control" :"sprint",
-    "key.keyboard.f" :"swapHands",
+    "key.keyboard.escape": "ESC",
+    "key.keyboard.s": "back",
+    "key.keyboard.q": "drop",
+    "key.keyboard.w": "forward",
+    "key.keyboard.1": "hotbar.1",
+    "key.keyboard.2": "hotbar.2",
+    "key.keyboard.3": "hotbar.3",
+    "key.keyboard.4": "hotbar.4",
+    "key.keyboard.5": "hotbar.5",
+    "key.keyboard.6": "hotbar.6",
+    "key.keyboard.7": "hotbar.7",
+    "key.keyboard.8": "hotbar.8",
+    "key.keyboard.9": "hotbar.9",
+    "key.keyboard.e": "inventory",
+    "key.keyboard.space": "jump",
+    "key.keyboard.a": "left",
+    "key.keyboard.d": "right",
+    "key.keyboard.left.shift": "sneak",
+    "key.keyboard.left.control": "sprint",
+    "key.keyboard.f": "swapHands",
 }
 
 # Template action
@@ -157,7 +157,10 @@ def main(model, weights, video_path, json_path, n_batches, n_frames):
             ret, frame = cap.read()
             if not ret:
                 break
-            assert frame.shape[0] == required_resolution[1] and frame.shape[1] == required_resolution[0], "Video must be of resolution {}".format(required_resolution)
+            assert (
+                frame.shape[0] == required_resolution[1]
+                and frame.shape[1] == required_resolution[0]
+            ), "Video must be of resolution {}".format(required_resolution)
             # BGR -> RGB
             frames.append(frame[..., ::-1])
             env_action, _ = json_action_to_env_action(json_data[json_index])
@@ -177,7 +180,7 @@ def main(model, weights, video_path, json_path, n_batches, n_frames):
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.4,
                 (255, 255, 255),
-                1
+                1,
             )
             for y, (action_name, action_array) in enumerate(predicted_actions.items()):
                 current_prediction = action_array[0, i]
@@ -188,23 +191,61 @@ def main(model, weights, video_path, json_path, n_batches, n_frames):
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.35,
                     (255, 255, 255),
-                    1
+                    1,
                 )
             # RGB -> BGR again...
             cv2.imshow("MineRL IDM model predictions", frame[..., ::-1])
             cv2.waitKey(0)
     cv2.destroyAllWindows()
 
+
 if __name__ == "__main__":
     parser = ArgumentParser("Run IDM on MineRL recordings.")
 
-    parser.add_argument("--weights", type=str, required=True, help="Path to the '.weights' file to be loaded.")
-    parser.add_argument("--model", type=str, required=True, help="Path to the '.model' file to be loaded.")
-    parser.add_argument("--video-path", type=str, required=True, help="Path to a .mp4 file (Minecraft recording).")
-    parser.add_argument("--jsonl-path", type=str, required=True, help="Path to a .jsonl file (Minecraft recording).")
-    parser.add_argument("--n-frames", type=int, default=128, help="Number of frames to process at a time.")
-    parser.add_argument("--n-batches", type=int, default=10, help="Number of batches (n-frames) to process for visualization.")
+    parser.add_argument(
+        "--weights",
+        type=str,
+        required=True,
+        help="Path to the '.weights' file to be loaded.",
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Path to the '.model' file to be loaded.",
+    )
+    parser.add_argument(
+        "--video-path",
+        type=str,
+        required=True,
+        help="Path to a .mp4 file (Minecraft recording).",
+    )
+    parser.add_argument(
+        "--jsonl-path",
+        type=str,
+        required=True,
+        help="Path to a .jsonl file (Minecraft recording).",
+    )
+    parser.add_argument(
+        "--n-frames",
+        type=int,
+        default=128,
+        help="Number of frames to process at a time.",
+    )
+    parser.add_argument(
+        "--n-batches",
+        type=int,
+        default=10,
+        help="Number of batches (n-frames) to process for visualization.",
+    )
 
     args = parser.parse_args()
 
-    main(args.model, args.weights, args.video_path, args.jsonl_path, args.n_batches, args.n_frames)
+    main(
+        args.model,
+        args.weights,
+        args.video_path,
+        args.jsonl_path,
+        args.n_batches,
+        args.n_frames,
+    )

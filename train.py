@@ -43,9 +43,7 @@ def get_dynamics_function(config: FGZConfig):
 def get_dynamics_environment(config: FGZConfig) -> MineRLDynamicsEnvironment:
     dynamics_function = get_dynamics_function(config)
     return MineRLDynamicsEnvironment(
-        config.action_space,
-        dynamics_function=dynamics_function,
-        n=config.num_walkers,
+        config.action_space, dynamics_function=dynamics_function, n=config.num_walkers
     )
 
 
@@ -55,7 +53,9 @@ def get_data_handler(config: FGZConfig, agent):
     )
 
 
-def run_training(trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10):
+def run_training(
+    trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10
+):
 
     best_acc = 0.0
 
@@ -72,6 +72,7 @@ def run_training(trainer, lr_scheduler, train_steps: int, batch_size: int, check
             best_acc = acc
             trainer.save("./train", f"./train/best_acc_{trainer.run_name}.pth")
 
+
 def main(use_wandb: bool):
     """
     This function will be called for training phase.
@@ -82,14 +83,14 @@ def main(use_wandb: bool):
     train_steps = 3000
     batch_size = 32
 
-    # enabled_tasks = [2, 3]  # cave and waterfall 
-    enabled_tasks = [0, 1, 2, 3]  # all 
+    # enabled_tasks = [2, 3]  # cave and waterfall
+    enabled_tasks = [0, 1, 2, 3]  # all
 
     config = FGZConfig(
         model_filename="foundation-model-2x.model",
         weights_filename="rl-from-early-game-2x.weights",
         enabled_tasks=enabled_tasks,
-        disable_fmc_detection=True,  # if true, only classification will occur. 
+        disable_fmc_detection=True,  # if true, only classification will occur.
         use_wandb=use_wandb,
         verbose=True,
         unroll_steps=4,
@@ -111,7 +112,9 @@ def main(use_wandb: bool):
 
     # setup training/fmc objects
     fmc = FMC(dynamics_env, freeze_best=True)
-    trainer = FGZTrainer(agent, fmc, data_handler, dynamics_function_optimizer, config=config)
+    trainer = FGZTrainer(
+        agent, fmc, data_handler, dynamics_function_optimizer, config=config
+    )
 
     if config.use_wandb:
         wandb.init(project="task-classification", config=config.asdict())
@@ -122,7 +125,9 @@ def main(use_wandb: bool):
 if __name__ == "__main__":
     parser = ArgumentParser()
 
-    parser.add_argument("--use-wandb", action="store_true", help="Enables usage of weights and biases.")
+    parser.add_argument(
+        "--use-wandb", action="store_true", help="Enables usage of weights and biases."
+    )
 
     args = parser.parse_args().__dict__
     main(**args)

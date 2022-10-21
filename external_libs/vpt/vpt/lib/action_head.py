@@ -29,7 +29,9 @@ class ActionHead(nn.Module):
         """
         raise NotImplementedError
 
-    def logprob(self, action_sample: torch.Tensor, pd_params: torch.Tensor) -> torch.Tensor:
+    def logprob(
+        self, action_sample: torch.Tensor, pd_params: torch.Tensor
+    ) -> torch.Tensor:
         """Logartithm of probability of sampling `action_sample` from a probability described by `pd_params`"""
         raise NotImplementedError
 
@@ -46,7 +48,9 @@ class ActionHead(nn.Module):
         """
         raise NotImplementedError
 
-    def kl_divergence(self, params_q: torch.Tensor, params_p: torch.Tensor) -> torch.Tensor:
+    def kl_divergence(
+        self, params_q: torch.Tensor, params_p: torch.Tensor
+    ) -> torch.Tensor:
         """KL divergence between two distribution described by these two params"""
         raise NotImplementedError
 
@@ -83,7 +87,9 @@ class DiagGaussianActionHead(ActionHead):
 
         return torch.stack([mean_view, logstd], dim=-1)
 
-    def logprob(self, action_sample: torch.Tensor, pd_params: torch.Tensor) -> torch.Tensor:
+    def logprob(
+        self, action_sample: torch.Tensor, pd_params: torch.Tensor
+    ) -> torch.Tensor:
         """Log-likelihood"""
         means = pd_params[..., 0]
         log_std = pd_params[..., 1]
@@ -102,7 +108,9 @@ class DiagGaussianActionHead(ActionHead):
         log_std = pd_params[..., 1]
         return (log_std + 0.5 * (self.LOG2PI + 1)).sum(dim=-1)
 
-    def sample(self, pd_params: torch.Tensor, deterministic: bool = False) -> torch.Tensor:
+    def sample(
+        self, pd_params: torch.Tensor, deterministic: bool = False
+    ) -> torch.Tensor:
         means = pd_params[..., 0]
         log_std = pd_params[..., 1]
 
@@ -111,7 +119,9 @@ class DiagGaussianActionHead(ActionHead):
         else:
             return torch.randn_like(means) * torch.exp(log_std) + means
 
-    def kl_divergence(self, params_q: torch.Tensor, params_p: torch.Tensor) -> torch.Tensor:
+    def kl_divergence(
+        self, params_q: torch.Tensor, params_p: torch.Tensor
+    ) -> torch.Tensor:
         """
         Categorical distribution KL divergence calculation
         KL(Q || P) = sum Q_i log (Q_i / P_i)
@@ -128,7 +138,12 @@ class DiagGaussianActionHead(ActionHead):
         std_q = torch.exp(log_std_q)
         std_p = torch.exp(log_std_p)
 
-        kl_div = log_std_p - log_std_q + (std_q ** 2 + (means_q - means_p) ** 2) / (2.0 * std_p ** 2) - 0.5
+        kl_div = (
+            log_std_p
+            - log_std_q
+            + (std_q ** 2 + (means_q - means_p) ** 2) / (2.0 * std_p ** 2)
+            - 0.5
+        )
 
         return kl_div.sum(dim=-1, keepdim=True)
 
@@ -137,7 +152,12 @@ class CategoricalActionHead(ActionHead):
     """Action head with categorical actions"""
 
     def __init__(
-        self, input_dim: int, shape: Tuple[int], num_actions: int, builtin_linear_layer: bool = True, temperature: float = 1.0
+        self,
+        input_dim: int,
+        shape: Tuple[int],
+        num_actions: int,
+        builtin_linear_layer: bool = True,
+        temperature: float = 1.0,
     ):
         super().__init__()
 
@@ -206,7 +226,9 @@ class CategoricalActionHead(ActionHead):
 
             return torch.argmax(logits - torch.log(-torch.log(u)), dim=-1)
 
-    def kl_divergence(self, logits_q: torch.Tensor, logits_p: torch.Tensor) -> torch.Tensor:
+    def kl_divergence(
+        self, logits_q: torch.Tensor, logits_p: torch.Tensor
+    ) -> torch.Tensor:
         """
         Categorical distribution KL divergence calculation
         KL(Q || P) = sum Q_i log (Q_i / P_i)
@@ -248,28 +270,46 @@ class DictActionHead(nn.ModuleDict):
         return result
 
     def logprob(self, actions: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
-        return sum(subhead.logprob(actions[k], logits[k]) for k, subhead in self.items())
+        return sum(
+            subhead.logprob(actions[k], logits[k]) for k, subhead in self.items()
+        )
 
     def sample(self, logits: torch.Tensor, deterministic: bool = False) -> Any:
-        return {k: subhead.sample(logits[k], deterministic) for k, subhead in self.items()}
+        return {
+            k: subhead.sample(logits[k], deterministic) for k, subhead in self.items()
+        }
 
     def entropy(self, logits: torch.Tensor) -> torch.Tensor:
         return sum(subhead.entropy(logits[k]) for k, subhead in self.items())
 
-    def kl_divergence(self, logits_q: torch.Tensor, logits_p: torch.Tensor) -> torch.Tensor:
-        return sum(subhead.kl_divergence(logits_q[k], logits_p[k]) for k, subhead in self.items())
+    def kl_divergence(
+        self, logits_q: torch.Tensor, logits_p: torch.Tensor
+    ) -> torch.Tensor:
+        return sum(
+            subhead.kl_divergence(logits_q[k], logits_p[k])
+            for k, subhead in self.items()
+        )
 
 
 def make_action_head(ac_space: ValType, pi_out_size: int, temperature: float = 1.0):
     """Helper function to create an action head corresponding to the environment action space"""
     if isinstance(ac_space, TensorType):
         if isinstance(ac_space.eltype, Discrete):
-            return CategoricalActionHead(pi_out_size, ac_space.shape, ac_space.eltype.n, temperature=temperature)
+            return CategoricalActionHead(
+                pi_out_size, ac_space.shape, ac_space.eltype.n, temperature=temperature
+            )
         elif isinstance(ac_space.eltype, Real):
             if temperature != 1.0:
-                logging.warning("Non-1 temperature not implemented for DiagGaussianActionHead.")
+                logging.warning(
+                    "Non-1 temperature not implemented for DiagGaussianActionHead."
+                )
             assert len(ac_space.shape) == 1, "Nontrivial shapes not yet implemented."
             return DiagGaussianActionHead(pi_out_size, ac_space.shape[0])
     elif isinstance(ac_space, DictType):
-        return DictActionHead({k: make_action_head(v, pi_out_size, temperature) for k, v in ac_space.items()})
+        return DictActionHead(
+            {
+                k: make_action_head(v, pi_out_size, temperature)
+                for k, v in ac_space.items()
+            }
+        )
     raise NotImplementedError(f"Action space of type {type(ac_space)} is not supported")

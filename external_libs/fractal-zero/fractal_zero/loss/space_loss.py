@@ -78,10 +78,7 @@ class BoxSpaceLoss(SpaceLoss):
         return self.loss_func(_float_cast(x), _float_cast(y))
 
 
-LOSS_CLASSES = {
-    spaces.Discrete: DiscreteSpaceLoss,
-    spaces.Box: BoxSpaceLoss,
-}
+LOSS_CLASSES = {spaces.Discrete: DiscreteSpaceLoss, spaces.Box: BoxSpaceLoss}
 
 
 class DictSpaceLoss(SpaceLoss):

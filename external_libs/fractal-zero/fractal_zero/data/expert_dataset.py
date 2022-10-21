@@ -15,10 +15,7 @@ class ExpertDataset:
 
 class ExpertDatasetGenerator(ExpertDataset):
     def __init__(
-        self,
-        policy_model,
-        env: Union[str, gym.Env],
-        action_vectorizer: Callable,
+        self, policy_model, env: Union[str, gym.Env], action_vectorizer: Callable
     ):
         self.env = load_environment(env)
         self.policy_model = policy_model

@@ -98,7 +98,9 @@ def _infer_part(part, concrete_dim, known, index, full_shape):
     if len(syms) == 0:
         return int_part
     elif len(syms) == 1 and concrete_dim is not None:
-        assert concrete_dim % int_part == 0, f"{concrete_dim} % {int_part} != 0 (at index {index}, full shape is {full_shape})"
+        assert (
+            concrete_dim % int_part == 0
+        ), f"{concrete_dim} % {int_part} != 0 (at index {index}, full shape is {full_shape})"
         v = concrete_dim // int_part
         if syms[0] in known:
             assert (
@@ -128,13 +130,21 @@ def _infer_step(args):
             concrete_dim = None
         else:
             concrete_dim = shape[i]
-        new_desc[i] = _infer_part(part=desc[i], concrete_dim=concrete_dim, known=new_known, index=i, full_shape=shape)
+        new_desc[i] = _infer_part(
+            part=desc[i],
+            concrete_dim=concrete_dim,
+            known=new_known,
+            index=i,
+            full_shape=shape,
+        )
     return new_known, new_desc, shape
 
 
 def _infer(known, desc, shape):
     if shape is not None:
-        assert len(desc) == len(shape), f"desc has length {len(desc)} but shape has length {len(shape)} (shape={shape})"
+        assert len(desc) == len(
+            shape
+        ), f"desc has length {len(desc)} but shape has length {len(shape)} (shape={shape})"
     known, desc, shape = fixed_point(_infer_step, (known, desc, shape))
     return desc, known
 
@@ -158,7 +168,9 @@ def _infer_question_mark(x, total_product):
     observed_product = 1
     for i in range(len(x)):
         if i != question_mark_index:
-            assert type(x[i]) is int, f"when there is a question mark, there can be no other unknown values (full list: {x})"
+            assert (
+                type(x[i]) is int
+            ), f"when there is a question mark, there can be no other unknown values (full list: {x})"
             observed_product *= x[i]
     assert (
         observed_product and total_product % observed_product == 0
@@ -194,7 +206,9 @@ def _handle_ellipsis(x, before, after):
     except ValueError:
         pass
     except UnboundLocalError as e:
-        raise ValueError("there cannot be an ellipsis in 'after' unless there is an ellipsis in 'before'") from e
+        raise ValueError(
+            "there cannot be an ellipsis in 'after' unless there is an ellipsis in 'before'"
+        ) from e
     return before, after
 
 
@@ -222,8 +236,12 @@ def reshape_undo(inp, before, after, *, undo=None, known=None, **kwargs):
     else:
         known = kwargs
     assert type(before) is type(after), f"{type(before)} != {type(after)}"
-    assert isinstance(inp, (th.Tensor, np.ndarray)), f"require tensor or ndarray but got {type(inp)}"
-    assert isinstance(before, (str, list)), f"require str or list but got {type(before)}"
+    assert isinstance(
+        inp, (th.Tensor, np.ndarray)
+    ), f"require tensor or ndarray but got {type(inp)}"
+    assert isinstance(
+        before, (str, list)
+    ), f"require str or list but got {type(before)}"
     if isinstance(before, str):
         before = _parse_reshape_str(before, "before")
         after = _parse_reshape_str(after, "after")
@@ -233,13 +251,17 @@ def reshape_undo(inp, before, after, *, undo=None, known=None, **kwargs):
     before = _ground(before, known, product(inp.shape))
     after = _ground(after, known, product(inp.shape))
     known = {k: v for k, v in known.items() if not k.startswith(NO_BIND)}
-    assert tuple(inp.shape) == tuple(before), f"expected shape {before} but got shape {inp.shape}"
+    assert tuple(inp.shape) == tuple(
+        before
+    ), f"expected shape {before} but got shape {inp.shape}"
     assert product(inp.shape) == product(
         after
     ), f"cannot reshape {inp.shape} to {after} because the number of elements does not match"
     return (
         inp.reshape(after),
-        compose_undo(undo, lambda inp: reshape(inp, after_saved, before_saved, known=known)),
+        compose_undo(
+            undo, lambda inp: reshape(inp, after_saved, before_saved, known=known)
+        ),
     )
 
 

@@ -14,7 +14,10 @@ class MLP(nn.Module):
         in_sizes = [insize] + [hidsize] * nhidlayer
         out_sizes = [hidsize] * nhidlayer + [outsize]
         self.layers = nn.ModuleList(
-            [tu.NormedLinear(insize, outsize, dtype=dtype) for (insize, outsize) in misc.safezip(in_sizes, out_sizes)]
+            [
+                tu.NormedLinear(insize, outsize, dtype=dtype)
+                for (insize, outsize) in misc.safezip(in_sizes, out_sizes)
+            ]
         )
         self.hidactiv = hidactiv
 

@@ -38,7 +38,7 @@ class FGZConfig:
     # when this is true, FMC will not be run and the discriminator will only try to discriminate between
     # the enabled tasks.
     disable_fmc_detection: bool = False
-    
+
     verbose: bool = False
 
     num_walkers: int = 128
@@ -83,10 +83,7 @@ class FGZConfig:
         }
 
     def asdict(self):
-        return {
-            **self.__dict__,
-            "enabled_tasks": self.enabled_tasks,
-        }
+        return {**self.__dict__, "enabled_tasks": self.enabled_tasks}
 
 
 if __name__ == "__main__":

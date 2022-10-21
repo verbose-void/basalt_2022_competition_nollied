@@ -110,13 +110,7 @@ class ReplayBuffer:
         num_frames = clip_length if pad_to_num_frames else actual_num_frames
 
         observations = np.zeros((num_frames, *game.observation_shape), dtype=float)
-        actions = np.zeros(
-            (
-                num_frames,
-                *game.action_shape,
-            ),
-            dtype=float,
-        )
+        actions = np.zeros((num_frames, *game.action_shape), dtype=float)
         rewards = np.zeros((num_frames,), dtype=float)
         values = np.zeros((num_frames,), dtype=float)
 

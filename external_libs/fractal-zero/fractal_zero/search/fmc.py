@@ -138,11 +138,7 @@ class FMC:
             # object, the actions that are sampled will not be enacted, and the previous
             # return values will be provided.
             self.tree.build_next_level(
-                self.actions,
-                self.observations,
-                self.rewards,
-                self.infos,
-                freeze_steps,
+                self.actions, self.observations, self.rewards, self.infos, freeze_steps
             )
 
         self._set_freeze_mask()
@@ -179,7 +175,7 @@ class FMC:
         else:
             rel_score = _relativize_vector(self.scores)
 
-        self.virtual_rewards = rel_score**self.balance * rel_sim
+        self.virtual_rewards = rel_score ** self.balance * rel_sim
 
         vr = self.virtual_rewards
         pair_vr = self.virtual_rewards[self.clone_partners]
@@ -189,7 +185,9 @@ class FMC:
         # clone all walkers at terminal states
         self.clone_mask[
             self.dones
-        ] = True  # NOTE: sometimes done might be a preferable terminal state (winning)... deal with this.
+        ] = (
+            True
+        )  # NOTE: sometimes done might be a preferable terminal state (winning)... deal with this.
         # don't clone frozen walkers
         self.clone_mask[self.freeze_mask] = False
 

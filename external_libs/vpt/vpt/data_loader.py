@@ -16,7 +16,9 @@ from vpt.agent import resize_image, AGENT_RESOLUTION
 
 QUEUE_TIMEOUT = 10
 
-CURSOR_FILE = os.path.join(os.path.dirname(__file__), "cursors", "mouse_cursor_white_16x16.png")
+CURSOR_FILE = os.path.join(
+    os.path.dirname(__file__), "cursors", "mouse_cursor_white_16x16.png"
+)
 
 MINEREC_ORIGINAL_HEIGHT_PX = 720
 
@@ -42,7 +44,9 @@ def composite_images_with_alpha(image1, image2, alpha, x, y):
     if ch == 0 or cw == 0:
         return
     alpha = alpha[:ch, :cw]
-    image1[y:y + ch, x:x + cw, :] = (image1[y:y + ch, x:x + cw, :] * (1 - alpha) + image2[:ch, :cw, :] * alpha).astype(np.uint8)
+    image1[y : y + ch, x : x + cw, :] = (
+        image1[y : y + ch, x : x + cw, :] * (1 - alpha) + image2[:ch, :cw, :] * alpha
+    ).astype(np.uint8)
 
 
 def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
@@ -92,7 +96,9 @@ def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
                     attack_is_stuck = False
             # If still stuck, remove the action
             if attack_is_stuck:
-                step_data["mouse"]["buttons"] = [button for button in step_data["mouse"]["buttons"] if button != 0]
+                step_data["mouse"]["buttons"] = [
+                    button for button in step_data["mouse"]["buttons"] if button != 0
+                ]
 
             action, is_null_action = json_action_to_env_action(step_data)
 
@@ -114,7 +120,9 @@ def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
                     camera_scaling_factor = frame.shape[0] / MINEREC_ORIGINAL_HEIGHT_PX
                     cursor_x = int(step_data["mouse"]["x"] * camera_scaling_factor)
                     cursor_y = int(step_data["mouse"]["y"] * camera_scaling_factor)
-                    composite_images_with_alpha(frame, cursor_image, cursor_alpha, cursor_x, cursor_y)
+                    composite_images_with_alpha(
+                        frame, cursor_image, cursor_alpha, cursor_x, cursor_y
+                    )
                 cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
                 frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
                 frame = resize_image(frame, AGENT_RESOLUTION)
@@ -126,6 +134,7 @@ def data_loader_worker(tasks_queue, output_queue, quit_workers_event):
             break
     # Tell that we ended
     output_queue.put(None)
+
 
 class DataLoader:
     """
@@ -142,8 +151,13 @@ class DataLoader:
     - Loads up individual files as trajectory files (i.e. if a trajectory is split into multiple files,
       this code will load it up as a separate item).
     """
-    def __init__(self, dataset_dir, n_workers=8, batch_size=8, n_epochs=1, max_queue_size=16):
-        assert n_workers >= batch_size, "Number of workers must be equal or greater than batch size"
+
+    def __init__(
+        self, dataset_dir, n_workers=8, batch_size=8, n_epochs=1, max_queue_size=16
+    ):
+        assert (
+            n_workers >= batch_size
+        ), "Number of workers must be equal or greater than batch size"
         self.dataset_dir = dataset_dir
         self.n_workers = n_workers
         self.n_epochs = n_epochs
@@ -159,7 +173,9 @@ class DataLoader:
             json_path = os.path.abspath(os.path.join(dataset_dir, unique_id + ".jsonl"))
             demonstration_tuples.append((video_path, json_path))
 
-        assert n_workers <= len(demonstration_tuples), f"n_workers should be lower or equal than number of demonstrations {len(demonstration_tuples)}"
+        assert n_workers <= len(
+            demonstration_tuples
+        ), f"n_workers should be lower or equal than number of demonstrations {len(demonstration_tuples)}"
 
         # Repeat dataset for n_epochs times, shuffling the order for
         # each epoch
@@ -180,12 +196,8 @@ class DataLoader:
         self.processes = [
             Process(
                 target=data_loader_worker,
-                args=(
-                    self.task_queue,
-                    output_queue,
-                    self.quit_workers_event,
-                ),
-                daemon=True
+                args=(self.task_queue, output_queue, self.quit_workers_event),
+                daemon=True,
             )
             for output_queue in self.output_queues
         ]
@@ -201,7 +213,9 @@ class DataLoader:
         batch_episode_id = []
 
         for i in range(self.batch_size):
-            workitem = self.output_queues[self.n_steps_processed % self.n_workers].get(timeout=QUEUE_TIMEOUT)
+            workitem = self.output_queues[self.n_steps_processed % self.n_workers].get(
+                timeout=QUEUE_TIMEOUT
+            )
             if workitem is None:
                 # Stop iteration when first worker runs out of work to do.
                 # Yes, this has a chance of cutting out a lot of the work,

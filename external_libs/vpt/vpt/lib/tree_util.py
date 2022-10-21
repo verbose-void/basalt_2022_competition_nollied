@@ -104,7 +104,10 @@ def tree_multimap(f, tree, *rest, treat_as_leaves: Optional[List] = None):
                 raise TypeError("Mismatch: {} != {}".format(other_node_data, node_spec))
             all_children.append(other_children)
 
-        new_children = [tree_multimap(f, *xs, treat_as_leaves=treat_as_leaves) for xs in zip(*all_children)]
+        new_children = [
+            tree_multimap(f, *xs, treat_as_leaves=treat_as_leaves)
+            for xs in zip(*all_children)
+        ]
         return node_type.from_iterable(node_spec, new_children)
     else:
         return f(tree, *rest)
@@ -129,7 +132,10 @@ def prefix_multimap(f, treedef, tree, *rest):
             all_children.append(other_children)
         all_children = zip(*all_children)
 
-        new_children = [prefix_multimap(f, td, *xs) for td, xs in zip(treedef.children, all_children)]
+        new_children = [
+            prefix_multimap(f, td, *xs)
+            for td, xs in zip(treedef.children, all_children)
+        ]
         return node_type.from_iterable(node_data, new_children)
 
 
@@ -140,7 +146,9 @@ def walk_pytree(f_node, f_leaf, tree, treat_as_leaves: Optional[List] = None):
 
     if node_type and type(tree) not in treat_as_leaves:
         children, node_spec = node_type.to_iterable(tree)
-        proc_children, child_specs = unzip2([walk_pytree(f_node, f_leaf, child, treat_as_leaves) for child in children])
+        proc_children, child_specs = unzip2(
+            [walk_pytree(f_node, f_leaf, child, treat_as_leaves) for child in children]
+        )
         tree_def = PyTreeDef(node_type, node_spec, child_specs)
         return f_node(proc_children), tree_def
     else:
@@ -165,7 +173,11 @@ def _tree_unflatten(xs, treedef):
 
 
 def _num_leaves(treedef):
-    return 1 if isinstance(treedef, PyLeaf) else sum(safe_map(_num_leaves, treedef.children))
+    return (
+        1
+        if isinstance(treedef, PyLeaf)
+        else sum(safe_map(_num_leaves, treedef.children))
+    )
 
 
 def _nested_treedef(inner, outer):
@@ -189,7 +201,9 @@ class PyTreeDef(object):
         else:
             data_repr = "[{}]".format(self.node_data)
 
-        return "PyTree({}{}, [{}])".format(self.node_type.name, data_repr, ",".join(safe_map(repr, self.children)))
+        return "PyTree({}{}, [{}])".format(
+            self.node_type.name, data_repr, ",".join(safe_map(repr, self.children))
+        )
 
     def __hash__(self):
         return hash((self.node_type, self.node_data, tuple(self.children)))
@@ -198,7 +212,11 @@ class PyTreeDef(object):
         if isinstance(other, PyLeaf):
             return False
         else:
-            return self.node_type == other.node_type and self.node_data == other.node_data and self.children == other.children
+            return (
+                self.node_type == other.node_type
+                and self.node_data == other.node_data
+                and self.children == other.children
+            )
 
     def __ne__(self, other):
         return not self == other
@@ -275,6 +293,10 @@ def none_from_iterable(_keys, _xs):
 register_pytree_node(tuple, tuple_to_iterable, tuple_from_iterable)
 register_pytree_node(list, list_to_iterable, list_from_iterable)
 register_pytree_node(dict, dict_to_iterable, dict_from_iterable)
-register_pytree_node(collections.OrderedDict, dict_to_iterable, ordered_dict_from_iterable)
-register_pytree_node(collections.defaultdict, default_dict_to_iterable, default_dict_from_iterable)
+register_pytree_node(
+    collections.OrderedDict, dict_to_iterable, ordered_dict_from_iterable
+)
+register_pytree_node(
+    collections.defaultdict, default_dict_to_iterable, default_dict_from_iterable
+)
 register_pytree_node(type(None), none_to_iterable, none_from_iterable)

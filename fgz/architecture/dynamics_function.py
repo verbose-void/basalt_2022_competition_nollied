@@ -52,13 +52,11 @@ class DynamicsFunction(torch.nn.Module):
         self.state_embedding_size = state_embedding_size
 
         self.button_embedder = torch.nn.Sequential(
-            torch.nn.Linear(num_actions, button_features),
-            torch.nn.ReLU(),
+            torch.nn.Linear(num_actions, button_features), torch.nn.ReLU()
         )
 
         self.camera_embedder = torch.nn.Sequential(
-            torch.nn.Linear(2, camera_features),
-            torch.nn.ReLU(),
+            torch.nn.Linear(2, camera_features), torch.nn.ReLU()
         )
 
         embeds = [
@@ -112,7 +110,9 @@ class DynamicsFunction(torch.nn.Module):
 
         return new_state, discriminator_logits
 
-    def forward_action(self, state_embedding: torch.Tensor, action, use_discrim: bool = True):
+    def forward_action(
+        self, state_embedding: torch.Tensor, action, use_discrim: bool = True
+    ):
         button_vec, camera_vec = vectorize_minerl_action(action)
 
         device = state_embedding.device
@@ -120,10 +120,7 @@ class DynamicsFunction(torch.nn.Module):
         camera_vec = camera_vec.unsqueeze(0).to(device)
 
         return self.forward(
-            state_embedding,
-            button_vec,
-            camera_vec,
-            use_discrim=use_discrim,
+            state_embedding, button_vec, camera_vec, use_discrim=use_discrim
         )
 
 

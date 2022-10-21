@@ -37,7 +37,9 @@ def attention(
     All keys where every value is equal to the constant SENTINEL will be ignored.
     Currently this is only used by StridedAttn.
     """
-    assert Q_bte.dtype == K_bTe.dtype == dtype, f"{Q_bte.dtype}, {K_bTe.dtype}, {dtype} must all match"
+    assert (
+        Q_bte.dtype == K_bTe.dtype == dtype
+    ), f"{Q_bte.dtype}, {K_bTe.dtype}, {dtype} must all match"
     e = Q_bte.shape[2]
     if check_sentinel:
         invalid = (K_bTe == SENTINEL).int().sum(dim=-1) == e
@@ -45,7 +47,13 @@ def attention(
     if isinstance(mask, th.Tensor):
         bias = (~mask).float() * -1e9
     elif mask:
-        bias = get_attn_bias_cached(Q_bte.shape[1], K_bTe.shape[1], maxlen=maxlen, device=Q_bte.device, dtype=th.float32)
+        bias = get_attn_bias_cached(
+            Q_bte.shape[1],
+            K_bTe.shape[1],
+            maxlen=maxlen,
+            device=Q_bte.device,
+            dtype=th.float32,
+        )
     else:
         bias = Q_bte.new_zeros((), dtype=th.float32)
     if extra_btT is not None:
@@ -106,7 +114,9 @@ def split_heads(x_bte, h):
 class All2All(Attn):
     def __init__(self, nhead, maxlen, mask=True, head_dim=None):
         super().__init__(mask=mask, maxlen=maxlen)
-        assert (nhead is None) != (head_dim is None), "exactly one of nhead and head_dim must be specified"
+        assert (nhead is None) != (
+            head_dim is None
+        ), "exactly one of nhead and head_dim must be specified"
         self.h = nhead
         self.head_dim = head_dim
 
@@ -145,7 +155,9 @@ class StridedAttn(Attn):
         self.stride = stride
 
     def _preproc(self, x, name, Q_t=None, Q_pad=None):
-        x, undo = misc.reshape_undo(x, "b, t*stride, e", "b, 1, t, stride*e", stride=self.stride)
+        x, undo = misc.reshape_undo(
+            x, "b, t*stride, e", "b, 1, t, stride*e", stride=self.stride
+        )
         if name == "Q":
             Q_pad = _required_padding(x.shape[2], self.maxlen)
         original_t = x.shape[2]
@@ -189,8 +201,16 @@ class StridedAttn(Attn):
         pad = _required_padding(Q_bte.shape[1], self.stride)
         if pad:
             Q_bte = F.pad(Q_bte, (0, 0, 0, pad), value=SENTINEL)
-            K_bte = F.pad(K_bte, (0, 0, 0, pad), value=SENTINEL) if K_bte is not None else None
-            V_bte = F.pad(V_bte, (0, 0, 0, pad), value=SENTINEL) if V_bte is not None else None
+            K_bte = (
+                F.pad(K_bte, (0, 0, 0, pad), value=SENTINEL)
+                if K_bte is not None
+                else None
+            )
+            V_bte = (
+                F.pad(V_bte, (0, 0, 0, pad), value=SENTINEL)
+                if V_bte is not None
+                else None
+            )
             undo = lambda x, pad=pad: x[:, :-pad]
         else:
             undo = None
@@ -207,8 +227,12 @@ class StridedAttn(Attn):
         return (
             postproc,
             Q,
-            self._preproc(K_bte, "K", Q_t=Q_t, Q_pad=Q_pad) if K_bte is not None else None,
-            self._preproc(V_bte, "V", Q_t=Q_t, Q_pad=Q_pad) if V_bte is not None else None,
+            self._preproc(K_bte, "K", Q_t=Q_t, Q_pad=Q_pad)
+            if K_bte is not None
+            else None,
+            self._preproc(V_bte, "V", Q_t=Q_t, Q_pad=Q_pad)
+            if V_bte is not None
+            else None,
         )
 
     def preproc_r(self, R_bte):
@@ -248,16 +272,32 @@ class AttentionLayerBase(nn.Module):
         self.c_size = c_size
         s = math.sqrt(scale)
         separgs = dict(seqlens=seqlens, separate=separate)
-        self.q_layer = MultiscaleLinear(x_size, qk_size, name="q", scale=Q_SCALE, dtype=dtype, **separgs)
-        self.k_layer = MultiscaleLinear(c_size, qk_size, name="k", scale=K_SCALE, bias=False, dtype=dtype, **separgs)
-        self.v_layer = MultiscaleLinear(c_size, v_size, name="v", scale=V_SCALE * s, bias=False, dtype=dtype, **separgs)
-        self.proj_layer = MultiscaleLinear(v_size, x_size, name="proj", scale=PROJ_SCALE * s, dtype=dtype, **separgs)
+        self.q_layer = MultiscaleLinear(
+            x_size, qk_size, name="q", scale=Q_SCALE, dtype=dtype, **separgs
+        )
+        self.k_layer = MultiscaleLinear(
+            c_size, qk_size, name="k", scale=K_SCALE, bias=False, dtype=dtype, **separgs
+        )
+        self.v_layer = MultiscaleLinear(
+            c_size,
+            v_size,
+            name="v",
+            scale=V_SCALE * s,
+            bias=False,
+            dtype=dtype,
+            **separgs,
+        )
+        self.proj_layer = MultiscaleLinear(
+            v_size, x_size, name="proj", scale=PROJ_SCALE * s, dtype=dtype, **separgs
+        )
         self.relattn = relattn
         maxlen = attn.maxlen
         assert maxlen > 0 or not attn.mask
         if self.relattn:
             nbasis = 10
-            self.r_layer = tu.NormedLinear(x_size, nbasis * attn.h, scale=R_SCALE, dtype=dtype)
+            self.r_layer = tu.NormedLinear(
+                x_size, nbasis * attn.h, scale=R_SCALE, dtype=dtype
+            )
             self.b_nd = nn.Parameter(th.randn(nbasis, maxlen) * B_SCALE)
         self.maxlen = maxlen
         self.dtype = dtype
@@ -338,7 +378,9 @@ class SelfAttentionLayer(AttentionLayerBase):
         V_bte = self.v_layer(X_bte)
         if state:
             state, K_bte, V_bte = self.update_state(state, K_bte, V_bte)
-        postproc_closure, Q_bte, K_bte, V_bte = self.attn.preproc_qkv(Q_bte, K_bte, V_bte)
+        postproc_closure, Q_bte, K_bte, V_bte = self.attn.preproc_qkv(
+            Q_bte, K_bte, V_bte
+        )
         extra_btT = self.relattn_logits(X_bte, K_bte.shape[1]) if self.relattn else None
         A_bte = attention(
             Q_bte,

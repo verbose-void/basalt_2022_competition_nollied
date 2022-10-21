@@ -84,12 +84,16 @@ def NormedLinear(*args, scale=1.0, dtype=th.float32, **kwargs):
 
 class LinearF16(nn.Linear):
     def forward(self, x):
-        return F.linear(x, self.weight.half(), self.bias.half() if self.bias is not None else None)
+        return F.linear(
+            x, self.weight.half(), self.bias.half() if self.bias is not None else None
+        )
 
 
 class LayerNormF16(nn.LayerNorm):
     def forward(self, x):
-        return F.layer_norm(x, self.normalized_shape, self.weight.half(), self.bias.half(), self.eps)
+        return F.layer_norm(
+            x, self.normalized_shape, self.weight.half(), self.bias.half(), self.eps
+        )
 
 
 def LayerNorm(*args, dtype=th.float32, **kwargs):
@@ -126,7 +130,9 @@ def load_average_with_metadata(paths, overrides):
         p.mul_(1 / n_models)
     for p in paths[1:]:
         new_model, _ = load_with_metadata(p, overrides=overrides)
-        for (n1, p1), (n2, p2) in misc.safezip(model.named_parameters(), new_model.named_parameters()):
+        for (n1, p1), (n2, p2) in misc.safezip(
+            model.named_parameters(), new_model.named_parameters()
+        ):
             assert n1 == n2, f"names {n1} and {n2} don't match"
             p1.add_(p2.mul_(1 / n_models))
     return model, metadata

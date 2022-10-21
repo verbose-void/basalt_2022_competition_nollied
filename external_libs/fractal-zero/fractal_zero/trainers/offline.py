@@ -9,10 +9,7 @@ from fractal_zero.data.tree_sampler import TreeSampler
 from fractal_zero.loss.space_loss import get_space_loss
 from fractal_zero.search.fmc import FMC
 from fractal_zero.config import FMCConfig
-from fractal_zero.utils import (
-    dist_of_model_paramters,
-    parameters_norm,
-)
+from fractal_zero.utils import dist_of_model_paramters, parameters_norm
 
 
 class OfflineFMCPolicyTrainer:
@@ -68,9 +65,7 @@ class OfflineFMCPolicyTrainer:
         loss = 0
         action_predictions = self.policy_model.forward(observations)
         for y, action_targets, action_weights in zip(
-            action_predictions,
-            actions,
-            weights,
+            action_predictions, actions, weights
         ):
             trajectory_loss = self._general_loss(y, action_targets, action_weights)
             loss += trajectory_loss
@@ -138,11 +133,7 @@ class OfflineFMCPolicyTrainer:
         if wandb.run is None:
             return
 
-        wandb.log(
-            {
-                "eval/total_rewards": sum(rewards),
-            }
-        )
+        wandb.log({"eval/total_rewards": sum(rewards)})
 
     def replay_best(self, render: bool = False):
         _, actions = self._get_best_only_batch()

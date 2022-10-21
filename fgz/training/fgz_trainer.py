@@ -111,7 +111,9 @@ class FGZTrainer:
 
         # each logit corresponds to one of the tasks. we can consider this to be our label
         target_logit = torch.tensor(
-            [self.current_trajectory_window.task_id], dtype=torch.long, device=root_embedding.device,
+            [self.current_trajectory_window.task_id],
+            dtype=torch.long,
+            device=root_embedding.device,
         )
 
         # one-hot encode the task classificaiton target
@@ -368,7 +370,7 @@ class FGZTrainer:
 
         env.close()
 
-    def save(self, directory: str="./train", filename: str=None):
+    def save(self, directory: str = "./train", filename: str = None):
         current_trajectory_window = self.current_trajectory_window
         agent = self.agent
         data_handler = self.data_handler
@@ -382,7 +384,7 @@ class FGZTrainer:
             folder = os.path.join(directory, f"{self.run_name}")
             os.makedirs(folder, exist_ok=True)
             filename = os.path.join(folder, f"step_{self.train_steps_taken}.pth")
-            
+
         torch.save(self, filename)
 
         self.current_trajectory_window = current_trajectory_window

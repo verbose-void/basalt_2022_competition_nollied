@@ -18,12 +18,14 @@ ACTION_TRANSFORMER_KWARGS = dict(
     camera_quantization_scheme="mu_law",
 )
 
+
 class IDMAgent:
     """
     Sugarcoating on the inverse dynamics model (IDM) used to predict actions Minecraft players take in videos.
 
     Functionally same as MineRLAgent.
     """
+
     def __init__(self, idm_net_kwargs, pi_head_kwargs, device=None):
         if device is None:
             device = default_device_type()
@@ -36,7 +38,11 @@ class IDMAgent:
 
         self.action_transformer = ActionTransformer(**ACTION_TRANSFORMER_KWARGS)
 
-        idm_policy_kwargs = dict(idm_net_kwargs=idm_net_kwargs, pi_head_kwargs=pi_head_kwargs, action_space=action_space)
+        idm_policy_kwargs = dict(
+            idm_net_kwargs=idm_net_kwargs,
+            pi_head_kwargs=pi_head_kwargs,
+            action_space=action_space,
+        )
 
         self.policy = InverseActionPolicy(**idm_policy_kwargs).to(device)
         self.hidden_state = self.policy.initial_state(1)
@@ -44,7 +50,9 @@ class IDMAgent:
 
     def load_weights(self, path):
         """Load model weights from a path, and reset hidden state"""
-        self.policy.load_state_dict(th.load(path, map_location=self.device), strict=False)
+        self.policy.load_state_dict(
+            th.load(path, map_location=self.device), strict=False
+        )
         self.reset()
 
     def reset(self):
@@ -65,7 +73,7 @@ class IDMAgent:
         # before proceeding. Otherwise, your agent might be a little derp.
         action = {
             "buttons": agent_action["buttons"].cpu().numpy(),
-            "camera": agent_action["camera"].cpu().numpy()
+            "camera": agent_action["camera"].cpu().numpy(),
         }
         minerl_action = self.action_mapper.to_factored(action)
         minerl_action_transformed = self.action_transformer.policy2env(minerl_action)
@@ -88,8 +96,10 @@ class IDMAgent:
         # so we do not hassle with it yet.
         dummy_first = th.zeros((video_frames.shape[0], 1)).to(self.device)
         predicted_actions, self.hidden_state, _ = self.policy.predict(
-            agent_input, first=dummy_first, state_in=self.hidden_state,
-            deterministic=True
+            agent_input,
+            first=dummy_first,
+            state_in=self.hidden_state,
+            deterministic=True,
         )
         predicted_minerl_action = self._agent_action_to_env(predicted_actions)
         return predicted_minerl_action

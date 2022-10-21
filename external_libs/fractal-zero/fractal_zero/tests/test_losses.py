@@ -70,12 +70,7 @@ def test_discrete_dict():
 
     # define a DictLoss with different loss functions for Discrete spaces.
     criterion = DictSpaceLoss(
-        spaces.Dict(
-            {
-                "space0": space,
-                "subspace": spaces.Dict({"space1": space}),
-            }
-        ),
+        spaces.Dict({"space0": space, "subspace": spaces.Dict({"space1": space})}),
         loss_spec={
             "space0": F.mse_loss,  # if this was None, should be default
             "subspace": {"space1": F.cross_entropy},
@@ -103,10 +98,7 @@ def test_discrete_dict():
 
 def test_dict():
     space = gym.spaces.Dict(
-        {
-            "x": gym.spaces.Discrete(4),
-            "y": gym.spaces.Box(low=0, high=1, shape=(2,)),
-        }
+        {"x": gym.spaces.Discrete(4), "y": gym.spaces.Box(low=0, high=1, shape=(2,))}
     )
 
     space.seed(5)

@@ -75,7 +75,9 @@ class CameraQuantizer:
     camera_binsize: int
     quantization_scheme: str = attr.ib(
         default=QuantizationScheme.LINEAR,
-        validator=attr.validators.in_([QuantizationScheme.LINEAR, QuantizationScheme.MU_LAW]),
+        validator=attr.validators.in_(
+            [QuantizationScheme.LINEAR, QuantizationScheme.MU_LAW]
+        ),
     )
     mu: float = attr.ib(default=5)
 
@@ -84,19 +86,25 @@ class CameraQuantizer:
 
         if self.quantization_scheme == QuantizationScheme.MU_LAW:
             xy = xy / self.camera_maxval
-            v_encode = np.sign(xy) * (np.log(1.0 + self.mu * np.abs(xy)) / np.log(1.0 + self.mu))
+            v_encode = np.sign(xy) * (
+                np.log(1.0 + self.mu * np.abs(xy)) / np.log(1.0 + self.mu)
+            )
             v_encode *= self.camera_maxval
             xy = v_encode
 
         # Quantize using linear scheme
-        return np.round((xy + self.camera_maxval) / self.camera_binsize).astype(np.int64)
+        return np.round((xy + self.camera_maxval) / self.camera_binsize).astype(
+            np.int64
+        )
 
     def undiscretize(self, xy):
         xy = xy * self.camera_binsize - self.camera_maxval
 
         if self.quantization_scheme == QuantizationScheme.MU_LAW:
             xy = xy / self.camera_maxval
-            v_decode = np.sign(xy) * (1.0 / self.mu) * ((1.0 + self.mu) ** np.abs(xy) - 1.0)
+            v_decode = (
+                np.sign(xy) * (1.0 / self.mu) * ((1.0 + self.mu) ** np.abs(xy) - 1.0)
+            )
             v_decode *= self.camera_maxval
             xy = v_decode
         return xy
@@ -143,7 +151,9 @@ class ActionTransformer:
         if not self.human_spaces:
             act.update(
                 {
-                    "synthetic_buttons": np.stack([acs[k] for k in SyntheticButtons.ALL], axis=-1),
+                    "synthetic_buttons": np.stack(
+                        [acs[k] for k in SyntheticButtons.ALL], axis=-1
+                    ),
                     "place": self.item_embed_name_to_id(acs["place"]),
                     "equip": self.item_embed_name_to_id(acs["equip"]),
                     "craft": self.item_embed_name_to_id(acs["craft"]),
