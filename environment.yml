@@ -11,8 +11,8 @@ dependencies:
     - git+https://github.com/minerllabs/minerl
     - coloredlogs
     - matplotlib
-    - -e ./external_libs/vpt/
-    - -e ./external_libs/fractal-zero/
+    # - -e ./external_libs/vpt/
+    # - -e ./external_libs/fractal-zero/
     - gym==0.19  # required gym version for my cases.
     - aicrowd-api
     - aicrowd-gym
