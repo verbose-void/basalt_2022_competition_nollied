@@ -54,6 +54,7 @@ class XIRLDataHandler:
             # try again if they're the same.
             return self.sample_pair()
 
-        return self.embed_trajectory(t0, max_frames=max_frames), self.embed_trajectory(
-            t1, max_frames=max_frames
+        return (
+            self.embed_trajectory(t0, max_frames=max_frames),
+            self.embed_trajectory(t1, max_frames=max_frames),
         )

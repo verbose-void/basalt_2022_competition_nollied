@@ -379,11 +379,7 @@ class DataLoader:
         self.processes = [
             Process(
                 target=data_loader_worker,
-                args=(
-                    self.task_queue,
-                    output_queue,
-                    self.quit_workers_event,
-                ),
+                args=(self.task_queue, output_queue, self.quit_workers_event),
                 daemon=True,
             )
             for output_queue in self.output_queues

@@ -1,3 +1,5 @@
+from datetime import datetime
+import os
 import minerl
 import gym
 import numpy as np
@@ -14,6 +16,7 @@ from vpt.agent import MineRLAgent
 from fgz.architecture.dynamics_function import DynamicsFunction
 
 from fgz.data_utils.data_handler import DataHandler
+from fgz.loading import get_agent
 from fgz_config import FGZConfig, TASKS
 
 
@@ -43,7 +46,15 @@ class FGZTrainer:
         self.fmc = fmc
         self.config = config
 
+        self.dynamics_function = self.fmc.vec_env.dynamics_function.to(agent.device)
         self.dynamics_function_optimizer = dynamics_function_optimizer
+
+        self.train_steps_taken = 0
+
+        if self.config.use_wandb:
+            self.run_name = wandb.run.name
+        else:
+            self.run_name = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
 
     @property
     def num_tasks(self):
@@ -97,11 +108,12 @@ class FGZTrainer:
 
     def get_expert_loss(self, full_window):
         _, root_embedding, _ = full_window[0]
-        dynamics: DynamicsFunction = self.fmc.vec_env.dynamics_function
 
         # each logit corresponds to one of the tasks. we can consider this to be our label
         target_logit = torch.tensor(
-            [self.current_trajectory_window.task_id], dtype=torch.long
+            [self.current_trajectory_window.task_id],
+            dtype=torch.long,
+            device=root_embedding.device,
         )
 
         # one-hot encode the task classificaiton target
@@ -118,7 +130,7 @@ class FGZTrainer:
         c = 0
         for i in range(self.fmc_steps_taken):
             _, _, action = full_window[i]
-            embedding, logits = dynamics.forward_action(embedding, action)
+            embedding, logits = self.dynamics_function.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
 
             preds = logits.argmax(1)
@@ -249,6 +261,10 @@ class FGZTrainer:
             self.expert_correct_frame_count / self.expert_total_frame_count
         )
 
+        include_consistency_loss = False
+        if include_consistency_loss:
+            total_loss = (total_loss + total_consistency_loss) / 2
+
         total_loss.backward()
         self.dynamics_function_optimizer.step()
 
@@ -267,17 +283,18 @@ class FGZTrainer:
                 }
             )
 
-        print("\n\n-------------------")
-        print("batch task ids:", task_ids)
-        print(
-            "loss:",
-            total_loss.item(),
-            "classification_loss:",
-            total_classification_loss.item(),
-            "consistency loss:",
-            total_consistency_loss.item(),
-        )
-        print("accuracy:", expert_classification_accuracy)
+        if self.config.verbose:
+            print("\n\n-------------------")
+            print("batch task ids:", task_ids)
+            print(
+                "loss:",
+                total_loss.item(),
+                "classification_loss:",
+                total_classification_loss.item(),
+                "consistency loss:",
+                total_consistency_loss.item(),
+            )
+            print("accuracy:", expert_classification_accuracy)
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
@@ -288,6 +305,10 @@ class FGZTrainer:
         #         max_steps=self.unroll_steps
         #     )
         #     expert_embeddings, expert_actions = unroller.decompose_window(expert_sequence[1:])
+
+        self.train_steps_taken += 1
+
+        return expert_classification_accuracy
 
     @torch.no_grad()
     def evaluate(
@@ -308,12 +329,16 @@ class FGZTrainer:
         self.agent.reset()
         self.fmc.vec_env.set_target_logit(target_logit)
 
+        # TODO: manage FMC device more carefully.
+        self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
+
         step = 0
         while True:
             embedding = self.agent.forward_observation(obs, return_embedding=True)
-            self.fmc.vec_env.set_all_states(embedding.squeeze())
+            self.fmc.vec_env.set_all_states(embedding.squeeze().cpu())
             self.fmc.reset()
-            self.fmc.simulate(self.config.unroll_steps)
+            # self.fmc.simulate(self.config.unroll_steps)
+            self.fmc.simulate(16)
 
             # get best FMC action
             path = self.fmc.tree.best_path
@@ -329,6 +354,8 @@ class FGZTrainer:
             obs, reward, done, info = env.step(action)
             self.eval_rewards.append(reward)
 
+            print(f"step {step} average path reward:", path.average_reward)
+
             if render:
                 env.render()
 
@@ -343,7 +370,7 @@ class FGZTrainer:
 
         env.close()
 
-    def save(self, path: str):
+    def save(self, directory: str = "./train", filename: str = None):
         current_trajectory_window = self.current_trajectory_window
         agent = self.agent
         data_handler = self.data_handler
@@ -353,7 +380,12 @@ class FGZTrainer:
         self.agent = None
         self.data_handler.agent = None
 
-        torch.save(self, path)
+        if filename is None:
+            folder = os.path.join(directory, f"{self.run_name}")
+            os.makedirs(folder, exist_ok=True)
+            filename = os.path.join(folder, f"step_{self.train_steps_taken}.pth")
+
+        torch.save(self, filename)
 
         self.current_trajectory_window = current_trajectory_window
         self.agent = agent
@@ -361,8 +393,14 @@ class FGZTrainer:
         self.data_handler.agent = agent
 
     @staticmethod
-    def load(path: str, agent: MineRLAgent):
+    def load(path: str):
         trainer: FGZTrainer = torch.load(path)
+
+        config = trainer.config
+        print(f"Loading with config: {config}")
+
+        agent = get_agent(config)
+
         trainer.agent = agent
         trainer.data_handler.agent = agent
         return trainer
