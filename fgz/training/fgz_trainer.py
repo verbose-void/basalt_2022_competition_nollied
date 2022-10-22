@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+from warnings import warn
 import minerl
 import gym
 import numpy as np
@@ -74,7 +75,7 @@ class FGZTrainer:
         self.fmc.vec_env.set_all_states(root_embedding.squeeze())
         self.fmc.reset()
 
-        self.fmc.simulate(self.config.unroll_steps)
+        self.fmc.simulate(self.config.fmc_steps)
 
         self.tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
         observations, actions, _, confusions, infos = self.tree_sampler.get_batch()
@@ -84,6 +85,8 @@ class FGZTrainer:
         self.fmc_observations = observations
         self.fmc_discrim_logits = infos
         self.fmc_confusions = torch.tensor(confusions[1:], requires_grad=False)
+
+        self.fmc_average_reward = self.fmc_confusions.mean()
 
         return self.fmc_discrim_logits
 
@@ -106,6 +109,10 @@ class FGZTrainer:
 
         discrim_logits = discrim_logits[1:]
         self.fmc_steps_taken = len(discrim_logits)
+    
+        if self.fmc_steps_taken <= 0:
+            warn("Uh oh... FMC steps was <= 0.")
+            return 0  # TODO: this should never happen.
 
         # TODO: explain
         discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
@@ -160,7 +167,7 @@ class FGZTrainer:
 
         # make sure we unroll to the length of FMC
         c = 0
-        for i in range(self.fmc_steps_taken):
+        for i in range(self.config.unroll_steps):
             _, _, action = full_window[i]
             embedding, logits = self.dynamics_function.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
@@ -181,7 +188,7 @@ class FGZTrainer:
         # print("accuracy", percent)
         # print("expert accuracy:", self.expert_correct_frame_count / self.expert_total_frame_count)
 
-        return loss / self.fmc_steps_taken
+        return loss / self.config.unroll_steps
 
     def _get_tqdm_description(self) -> str:
         task_name = TASKS[self.current_trajectory_window.task_id]["name"]
@@ -194,7 +201,7 @@ class FGZTrainer:
         self, max_steps: int = None, use_tqdm: bool = False
     ):
         if self.config.disable_fmc_detection:
-            self.fmc_steps_taken = self.config.unroll_steps
+            self.fmc_steps_taken = 0
             self.fmc_confusions = np.zeros(1)
 
         # reset the hidden state of the agent, so we don't carry over any context from
@@ -270,6 +277,12 @@ class FGZTrainer:
         total_loss = 0.0
         total_consistency_loss = 0.0
         total_classification_loss = 0.0
+
+        if self.config.disable_fmc_detection and batch_size % 2 != 0:
+            raise ValueError("Batch size should be an even number when enabling FMC detection.")
+            
+        num_batch_steps = batch_size if self.config.disable_fmc_detection else batch_size // 2
+
         for _ in range(batch_size):
             (
                 loss,
@@ -313,7 +326,8 @@ class FGZTrainer:
                     "train/accuracy": expert_classification_accuracy,
                     "train/no_fmc_task_accuracy": task_accuracy,
                     "metrics/expert_total_frame_count": self.expert_total_frame_count,
-                    # "fmc/steps_taken": self.fmc_steps_taken,
+                    "fmc/steps_taken": self.fmc_steps_taken,
+                    "fmc/average_reward": self.fmc_average_reward,
                     # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
                 }
             )
@@ -373,7 +387,7 @@ class FGZTrainer:
             self.fmc.vec_env.set_all_states(embedding.squeeze().cpu())
             self.fmc.reset()
             # self.fmc.simulate(self.config.unroll_steps)
-            self.fmc.simulate(16)
+            self.fmc.simulate(self.config.fmc_steps)
 
             # get best FMC action
             path = self.fmc.tree.best_path

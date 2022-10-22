@@ -93,6 +93,7 @@ def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int, ta
         use_wandb=use_wandb,
         verbose=True,
         unroll_steps=4,
+        fmc_steps=16,
     )
 
     print(f"Running with config: {config}")
