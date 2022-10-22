@@ -74,7 +74,15 @@ def run_training(
             trainer.save("./train", f"./train/best_acc_{trainer.run_name}.pth")
 
 
-def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int, tasks: List[int]):
+def main(
+    use_wandb: bool, 
+    fmc_logit: bool, 
+    batch_size: int, 
+    train_steps: int, 
+    tasks: List[int],
+    fmc_steps: int,
+    num_walkers: int,
+):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
@@ -93,7 +101,8 @@ def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int, ta
         use_wandb=use_wandb,
         verbose=True,
         unroll_steps=4,
-        fmc_steps=16,
+        fmc_steps=fmc_steps,
+        num_walkers=num_walkers,
     )
 
     print(f"Running with config: {config}")
@@ -132,9 +141,11 @@ if __name__ == "__main__":
 
     parser.add_argument("--fmc-logit", action="store_true", help="Improve the task classifier by having it train on FMC data that's exploiting it's neurons like an adversarial setup.")
 
-    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--train-steps", type=int, default=3000)
     parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
+    parser.add_argument("--num-walkers", type=int, default=128, help="Number of simultaneous states to be explored in the FMC lookahead search.")
+    parser.add_argument("--fmc-steps", type=int, default=8, help="Number of simulation steps in the FMC lookahead search.")
 
     args = parser.parse_args().__dict__
 
