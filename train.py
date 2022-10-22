@@ -98,7 +98,7 @@ def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int, ta
 
     print(f"Running with config: {config}")
     if config.use_wandb:
-        wandb.init(project="cave-discrimination", config=config.asdict())
+        wandb.init(project="fgz_all_tasks", config=config.asdict())
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     agent = get_agent(config)

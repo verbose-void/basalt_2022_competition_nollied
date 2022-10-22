@@ -101,7 +101,7 @@ class FGZTrainer:
             task_preds = logits[:, :-1].argmax(1)
             self.expert_correct_task_count += (task_preds == task_targets).sum()
 
-        self.expert_total_frame_count += targets.numel()
+        self.current_trajectory_processed_frame_count += targets.numel()
 
     def get_fmc_loss(self, full_window):
         fmc_root_embedding = full_window[0][1]
@@ -270,7 +270,7 @@ class FGZTrainer:
         # for accuracy calc
         self.expert_correct_logit_count = 0
         self.expert_correct_task_count = 0
-        self.expert_total_frame_count = 0
+        self.current_trajectory_processed_frame_count = 0
 
         task_ids = []
 
@@ -283,7 +283,7 @@ class FGZTrainer:
             
         num_batch_steps = batch_size if self.config.disable_fmc_detection else batch_size // 2
 
-        for _ in range(batch_size):
+        for _ in range(num_batch_steps):
             (
                 loss,
                 consistency_loss,
@@ -300,8 +300,8 @@ class FGZTrainer:
         total_consistency_loss /= batch_size
         total_classification_loss /= batch_size
 
-        expert_classification_accuracy = (
-            self.expert_correct_logit_count / self.expert_total_frame_count
+        logit_accuracy = (
+            self.expert_correct_logit_count / self.current_trajectory_processed_frame_count
         )
 
         include_consistency_loss = False
@@ -314,7 +314,7 @@ class FGZTrainer:
         if self.config.use_wandb and wandb.run:
             task_accuracy = 0.0
             if not self.config.disable_fmc_detection:
-                task_accuracy = self.expert_correct_task_count / self.expert_total_frame_count
+                task_accuracy = self.expert_correct_task_count / self.current_trajectory_processed_frame_count
             
             wandb.log(
                 {
@@ -323,9 +323,9 @@ class FGZTrainer:
                     "train/total_loss": total_loss,
                     "train/expert_consistency_loss": total_consistency_loss,
                     "train/classification_loss": total_classification_loss,
-                    "train/accuracy": expert_classification_accuracy,
+                    "train/accuracy": logit_accuracy,
                     "train/no_fmc_task_accuracy": task_accuracy,
-                    "metrics/expert_total_frame_count": self.expert_total_frame_count,
+                    "metrics/frame_count": self.current_trajectory_processed_frame_count,
                     "fmc/steps_taken": self.fmc_steps_taken,
                     "fmc/average_reward": self.fmc_average_reward,
                     # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
@@ -343,7 +343,7 @@ class FGZTrainer:
                 "consistency loss:",
                 total_consistency_loss.item(),
             )
-            print("accuracy:", expert_classification_accuracy)
+            print("accuracy:", logit_accuracy)
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
@@ -357,7 +357,7 @@ class FGZTrainer:
 
         self.train_steps_taken += 1
 
-        return expert_classification_accuracy
+        return logit_accuracy
 
     @torch.no_grad()
     def evaluate(
