@@ -73,28 +73,30 @@ def run_training(
             trainer.save("./train", f"./train/best_acc_{trainer.run_name}.pth")
 
 
-def main(use_wandb: bool):
+def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     All trained models should be placed under "train" directory!
     """
 
-    train_steps = 3000
-    batch_size = 32
-
+    enabled_tasks = [2]  # cave only
     # enabled_tasks = [2, 3]  # cave and waterfall
-    enabled_tasks = [0, 1, 2, 3]  # all
+    # enabled_tasks = [0, 1, 2, 3]  # all
 
     config = FGZConfig(
         model_filename="foundation-model-2x.model",
         weights_filename="rl-from-early-game-2x.weights",
         enabled_tasks=enabled_tasks,
-        disable_fmc_detection=True,  # if true, only classification will occur.
+        disable_fmc_detection=not fmc_logit,  # if true, only classification will occur.
         use_wandb=use_wandb,
         verbose=True,
         unroll_steps=4,
     )
+
+    print(f"Running with config: {config}")
+    if config.use_wandb:
+        wandb.init(project="cave-discrimination", config=config.asdict())
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     agent = get_agent(config)
@@ -116,9 +118,6 @@ def main(use_wandb: bool):
         agent, fmc, data_handler, dynamics_function_optimizer, config=config
     )
 
-    if config.use_wandb:
-        wandb.init(project="task-classification", config=config.asdict())
-
     run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=batch_size)
 
 
@@ -128,6 +127,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-wandb", action="store_true", help="Enables usage of weights and biases."
     )
+
+    parser.add_argument("--fmc-logit", action="store_true", help="Improve the task classifier by having it train on FMC data that's exploiting it's neurons like an adversarial setup.")
+
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--train-steps", type=int, default=3000)
 
     args = parser.parse_args().__dict__
     main(**args)

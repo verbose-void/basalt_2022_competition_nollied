@@ -83,6 +83,19 @@ class FGZTrainer:
 
         return self.fmc_discrim_logits
 
+    def _log_accuracies(self, logits, targets: torch.Tensor, task_targets: torch.Tensor=None):
+        if task_targets is None:
+            task_targets = targets
+
+        preds = logits.argmax(1)
+        self.expert_correct_logit_count += (preds == targets).sum()
+
+        if not self.config.disable_fmc_detection:
+            task_preds = logits[:, :-1].argmax(1)
+            self.expert_correct_task_count += (task_preds == task_targets).sum()
+
+        self.expert_total_frame_count += targets.numel()
+
     def get_fmc_loss(self, full_window):
         fmc_root_embedding = full_window[0][1]
         discrim_logits = self.get_fmc_trajectory(fmc_root_embedding)
@@ -93,6 +106,9 @@ class FGZTrainer:
         # TODO: explain
         discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
         discrim_logits = torch.cat(discrim_logits)
+
+        # TODO: should we make this a distribution where the target logit for the task
+        # is also slightly higher?
         fmc_discriminator_targets = (
             torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.config.fmc_logit
         )
@@ -103,6 +119,16 @@ class FGZTrainer:
 
         # self.fmc_steps_taken = len(fmc_confusions)
         # return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
+
+        # TODO: add the correct task accuracies in here as well.
+
+        task_targets = torch.tensor(
+            [self.current_trajectory_window.task_id] * self.fmc_steps_taken,
+            dtype=torch.long,
+            device=discrim_logits.device,
+        )
+
+        self._log_accuracies(discrim_logits, fmc_discriminator_targets, task_targets)
 
         return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
 
@@ -133,10 +159,7 @@ class FGZTrainer:
             embedding, logits = self.dynamics_function.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
 
-            preds = logits.argmax(1)
-            correct = preds == target_logit
-            self.expert_correct_frame_count += correct.sum()
-            self.expert_total_frame_count += 1
+            self._log_accuracies(logits, target_logit)
 
             # squared error (later it's averaged so MSE.)
             if i < len(full_window) - 1:
@@ -188,12 +211,12 @@ class FGZTrainer:
         for step, full_window in enumerate(it):
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
 
-            expert_loss = self.get_expert_loss(full_window)
-
             if self.config.disable_fmc_detection:
                 fmc_loss = 0.0
             else:
                 fmc_loss = self.get_fmc_loss(full_window)
+
+            expert_loss = self.get_expert_loss(full_window)
 
             loss = expert_loss + fmc_loss
 
@@ -232,7 +255,8 @@ class FGZTrainer:
         self.dynamics_function_optimizer.zero_grad()
 
         # for accuracy calc
-        self.expert_correct_frame_count = 0
+        self.expert_correct_logit_count = 0
+        self.expert_correct_task_count = 0
         self.expert_total_frame_count = 0
 
         task_ids = []
@@ -258,7 +282,7 @@ class FGZTrainer:
         total_classification_loss /= batch_size
 
         expert_classification_accuracy = (
-            self.expert_correct_frame_count / self.expert_total_frame_count
+            self.expert_correct_logit_count / self.expert_total_frame_count
         )
 
         include_consistency_loss = False
@@ -269,6 +293,10 @@ class FGZTrainer:
         self.dynamics_function_optimizer.step()
 
         if self.config.use_wandb and wandb.run:
+            task_accuracy = 0.0
+            if not self.config.disable_fmc_detection:
+                task_accuracy = self.expert_correct_task_count / self.expert_total_frame_count
+            
             wandb.log(
                 {
                     # "train/fmc_loss": fmc_loss,
@@ -276,7 +304,8 @@ class FGZTrainer:
                     "train/total_loss": total_loss,
                     "train/expert_consistency_loss": total_consistency_loss,
                     "train/classification_loss": total_classification_loss,
-                    "train/task_accuracy": expert_classification_accuracy,
+                    "train/accuracy": expert_classification_accuracy,
+                    "train/no_fmc_task_accuracy": task_accuracy,
                     "metrics/expert_total_frame_count": self.expert_total_frame_count,
                     # "fmc/steps_taken": self.fmc_steps_taken,
                     # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
