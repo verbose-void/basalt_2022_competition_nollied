@@ -128,7 +128,7 @@ class FMC:
             self.dones,
             self.infos,
         ) = self.vec_env.batch_step(self.actions, freeze_steps)
-        self.scores += self.rewards
+        self.scores += self.rewards.cpu()
         self.average_rewards = self.scores / self.tree.get_depths()
 
         if self.tree:
@@ -166,7 +166,7 @@ class FMC:
         self._set_valid_clone_partners()
         self.similarities = self.similarity_function(
             self.states, self.states[self.clone_partners]
-        )
+        ).cpu()
 
         rel_sim = _relativize_vector(self.similarities)
 

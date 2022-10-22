@@ -46,7 +46,7 @@ class FGZTrainer:
         self.fmc = fmc
         self.config = config
 
-        self.dynamics_function = self.fmc.vec_env.dynamics_function.to(agent.device)
+        self.fmc.vec_env.dynamics_function = self.fmc.vec_env.dynamics_function.to(agent.device)
         self.dynamics_function_optimizer = dynamics_function_optimizer
 
         self.train_steps_taken = 0
@@ -55,6 +55,10 @@ class FGZTrainer:
             self.run_name = wandb.run.name
         else:
             self.run_name = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
+
+    @property
+    def dynamics_function(self):
+        return self.fmc.vec_env.dynamics_function
 
     @property
     def num_tasks(self):
@@ -107,10 +111,12 @@ class FGZTrainer:
         discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
         discrim_logits = torch.cat(discrim_logits)
 
+        device = discrim_logits.device
+
         # TODO: should we make this a distribution where the target logit for the task
         # is also slightly higher?
         fmc_discriminator_targets = (
-            torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.config.fmc_logit
+            torch.ones(self.fmc_steps_taken, dtype=torch.long, device=device) * self.config.fmc_logit
         )
 
         # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
@@ -125,7 +131,7 @@ class FGZTrainer:
         task_targets = torch.tensor(
             [self.current_trajectory_window.task_id] * self.fmc_steps_taken,
             dtype=torch.long,
-            device=discrim_logits.device,
+            device=device,
         )
 
         self._log_accuracies(discrim_logits, fmc_discriminator_targets, task_targets)

@@ -28,14 +28,20 @@ def vectorize_minerl_action(action: Dict, camera_scale: float = 180):
     return button_vec.float(), camera_vec.float()
 
 
-def vectorize_minerl_actions(actions: List[Dict], camera_scale: float = 180):
+def vectorize_minerl_actions(actions: List[Dict], camera_scale: float = 180, device=None):
     button_vecs = []
     camera_vecs = []
     for action in actions:
         bv, cv = vectorize_minerl_action(action, camera_scale=camera_scale)
         button_vecs.append(bv)
         camera_vecs.append(cv)
-    return torch.stack(button_vecs), torch.stack(camera_vecs)
+
+    button_vecs, camera_vecs = torch.stack(button_vecs), torch.stack(camera_vecs)
+
+    if device is not None:
+        return button_vecs.to(device), camera_vecs.to(device)
+
+    return button_vecs, camera_vecs
 
 
 class DynamicsFunction(torch.nn.Module):
@@ -148,17 +154,21 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1, state_embedding.shape
-        self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size))
+        self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size), device=state_embedding.device)
         self.states[:] = state_embedding
 
+        # self.dynamics_function = self.dynamics_function.to(self.states.device)
+
     def batch_step(self, actions, freeze_mask):
+        freeze_mask = freeze_mask.to(self.states.device)
+
         assert len(actions) == self.n
         assert self.states.shape == (
             self.n,
             self.dynamics_function.state_embedding_size,
         )
 
-        button_vectors, camera_vectors = vectorize_minerl_actions(actions)
+        button_vectors, camera_vectors = vectorize_minerl_actions(actions, device=self.states.device)
         new_states, discrim_logits = self.dynamics_function.forward(
             self.states, button_vectors, camera_vectors
         )
