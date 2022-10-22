@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 import logging
 import os
+from typing import List
 
 import numpy as np
 import gym
@@ -73,21 +74,21 @@ def run_training(
             trainer.save("./train", f"./train/best_acc_{trainer.run_name}.pth")
 
 
-def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int):
+def main(use_wandb: bool, fmc_logit: bool, batch_size: int, train_steps: int, tasks: List[int]):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     All trained models should be placed under "train" directory!
     """
 
-    enabled_tasks = [2]  # cave only
+    # enabled_tasks = [2]  # cave only
     # enabled_tasks = [2, 3]  # cave and waterfall
     # enabled_tasks = [0, 1, 2, 3]  # all
 
     config = FGZConfig(
         model_filename="foundation-model-2x.model",
         weights_filename="rl-from-early-game-2x.weights",
-        enabled_tasks=enabled_tasks,
+        enabled_tasks=tasks,
         disable_fmc_detection=not fmc_logit,  # if true, only classification will occur.
         use_wandb=use_wandb,
         verbose=True,
@@ -132,6 +133,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--train-steps", type=int, default=3000)
+    parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
 
     args = parser.parse_args().__dict__
+
+    args["tasks"] = list(args["tasks"])
+
     main(**args)

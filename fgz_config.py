@@ -42,7 +42,7 @@ class FGZConfig:
     verbose: bool = False
 
     num_walkers: int = 128
-    unroll_steps: int = 8
+    unroll_steps: int = 4
 
     use_wandb: bool = False
 
