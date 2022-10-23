@@ -312,9 +312,10 @@ class FGZTrainer:
         self.dynamics_function_optimizer.step()
 
         if self.config.use_wandb and wandb.run:
-            task_accuracy = 0.0
-            if not self.config.disable_fmc_detection:
-                task_accuracy = self.expert_correct_task_count / self.current_trajectory_processed_frame_count
+            task_accuracy = self.expert_correct_task_count / self.current_trajectory_processed_frame_count
+            
+            if self.config.disable_fmc_detection:
+                self.fmc_average_reward = 0
             
             wandb.log(
                 {
@@ -428,6 +429,7 @@ class FGZTrainer:
         self.current_trajectory_window = None
         self.agent = None
         self.data_handler.agent = None
+        self.fmc.vec_env.agent = None
 
         if filename is None:
             folder = os.path.join(directory, f"{self.run_name}")
@@ -440,6 +442,7 @@ class FGZTrainer:
         self.agent = agent
         self.data_handler = data_handler
         self.data_handler.agent = agent
+        self.fmc.vec_env.agent = agent
 
     @staticmethod
     def load(path: str):
@@ -452,4 +455,5 @@ class FGZTrainer:
 
         trainer.agent = agent
         trainer.data_handler.agent = agent
+        trainer.fmc.vec_env.agent = agent
         return trainer

@@ -13,6 +13,7 @@ import coloredlogs
 
 from fractal_zero.search.fmc import FMC
 from fractal_zero.vectorized_environment import VectorizedDynamicsModelEnvironment
+from vpt.agent import MineRLAgent
 from fgz.architecture.dynamics_function import (
     DynamicsFunction,
     MineRLDynamicsEnvironment,
@@ -41,10 +42,11 @@ def get_dynamics_function(config: FGZConfig):
     )
 
 
-def get_dynamics_environment(config: FGZConfig) -> MineRLDynamicsEnvironment:
+def get_dynamics_environment(config: FGZConfig, agent: MineRLAgent) -> MineRLDynamicsEnvironment:
     dynamics_function = get_dynamics_function(config)
+
     return MineRLDynamicsEnvironment(
-        config.action_space, dynamics_function=dynamics_function, n=config.num_walkers
+        config.action_space, dynamics_function=dynamics_function, agent=agent, n=config.num_walkers
     )
 
 
@@ -82,6 +84,7 @@ def main(
     tasks: List[int],
     fmc_steps: int,
     num_walkers: int,
+    fmc_random_policy: bool,
 ):
     """
     This function will be called for training phase.
@@ -103,6 +106,7 @@ def main(
         unroll_steps=4,
         fmc_steps=fmc_steps,
         num_walkers=num_walkers,
+        fmc_random_policy=fmc_random_policy,
     )
 
     print(f"Running with config: {config}")
@@ -111,7 +115,7 @@ def main(
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     agent = get_agent(config)
-    dynamics_env = get_dynamics_environment(config)
+    dynamics_env = get_dynamics_environment(config, agent)
     data_handler = get_data_handler(config, agent)
 
     # setup optimizer and learning rate schedule
@@ -146,6 +150,7 @@ if __name__ == "__main__":
     parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
     parser.add_argument("--num-walkers", type=int, default=128, help="Number of simultaneous states to be explored in the FMC lookahead search.")
     parser.add_argument("--fmc-steps", type=int, default=8, help="Number of simulation steps in the FMC lookahead search.")
+    parser.add_argument("--fmc-random-policy", action="store_true", help="If true, FMC will not use the agent's policy, instead it will sample random actions.")
 
     args = parser.parse_args().__dict__
 

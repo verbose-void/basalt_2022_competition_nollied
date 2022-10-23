@@ -44,6 +44,7 @@ class FGZConfig:
     num_walkers: int = 128
     fmc_steps: int = 16
     unroll_steps: int = 4
+    fmc_random_policy: bool = False
 
     use_wandb: bool = False
 

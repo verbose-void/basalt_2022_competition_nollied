@@ -146,6 +146,7 @@ class MineRLAgent:
     def reset(self):
         """Reset agent to initial state (i.e., reset hidden state)"""
         self.hidden_state = self.policy.initial_state(1)
+        self.last_pd = None
 
     def _env_obs_to_agent(self, minerl_obs):
         """
@@ -235,4 +236,10 @@ class MineRLAgent:
             return embedding
 
         pd, v, state_out = ret
+        self.last_pd = pd
         return pd, v
+
+    def sample_action(self):
+        agent_action = self.pi_head.sample(self.last_pd, deterministic=False)
+        minerl_action = self._agent_action_to_env(agent_action)
+        return minerl_action

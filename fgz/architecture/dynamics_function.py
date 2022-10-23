@@ -2,6 +2,7 @@ import minerl
 import gym
 
 from typing import Dict, List
+from vpt.agent import MineRLAgent
 
 from vpt.lib.actions import Buttons
 import torch
@@ -135,11 +136,15 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self,
         action_space: gym.Env,
         dynamics_function: DynamicsFunction,
+        agent: MineRLAgent,
         n: int = 1,
         apply_softmax_before_reward: bool = True,
+        use_agent_policy: bool = True,
     ):
         self.action_space = action_space
         self.dynamics_function = dynamics_function
+        self.agent = agent
+        self.use_agent_policy = use_agent_policy
         self.n = n
 
         # NOTE: this should be updated with each trajectory in the training script.
@@ -211,5 +216,11 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         actions = []
         for _ in range(self.n):
             action_space = self.action_space
-            actions.append(action_space.sample())
+
+            if self.use_agent_policy:
+                action = self.agent.sample_action()
+            else:
+                action = action_space.sample()
+
+            actions.append(action)
         return actions
