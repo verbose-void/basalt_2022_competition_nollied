@@ -460,14 +460,20 @@ class FGZTrainer:
         self.data_handler.agent = agent
         self.fmc.vec_env.agent = agent
 
+        return filename
+
     @staticmethod
-    def load(path: str):
+    def load(path: str, device=None):
         trainer: FGZTrainer = torch.load(path)
 
         config = trainer.config
         print(f"Loading with config: {config}")
 
         agent = get_agent(config)
+
+        if device is not None:
+            agent = agent.to(device)
+            trainer.fmc.vec_env.dynamics_function = trainer.fmc.vec_env.dynamics_function.to(device)
 
         trainer.agent = agent
         trainer.data_handler.agent = agent
