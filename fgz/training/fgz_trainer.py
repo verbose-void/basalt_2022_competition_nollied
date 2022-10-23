@@ -389,7 +389,7 @@ class FGZTrainer:
 
         video_path = None
         if save_video:
-            video_path = f"./train/{self.run_name}/eval_{self.train_steps_taken}_{minerl_environment_id}.mp4"
+            video_path = f"./train/checkpoints/{self.run_name}/eval_{self.train_steps_taken}_{minerl_environment_id}.mp4"
             video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, (640, 360))
 
         step = 0
