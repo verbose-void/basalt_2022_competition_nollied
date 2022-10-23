@@ -143,12 +143,13 @@ if __name__ == "__main__":
         "--use-wandb", action="store_true", help="Enables usage of weights and biases."
     )
 
-    parser.add_argument("--fmc-logit", action="store_true", help="Improve the task classifier by having it train on FMC data that's exploiting it's neurons like an adversarial setup.")
-
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--train-steps", type=int, default=3000)
     parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
+
+    # FMC hyperparameters
     parser.add_argument("--num-walkers", type=int, default=128, help="Number of simultaneous states to be explored in the FMC lookahead search.")
+    parser.add_argument("--fmc-logit", action="store_true", help="Improve the task classifier by having it train on FMC data that's exploiting it's neurons like an adversarial setup.")
     parser.add_argument("--fmc-steps", type=int, default=8, help="Number of simulation steps in the FMC lookahead search.")
     parser.add_argument("--fmc-random-policy", action="store_true", help="If true, FMC will not use the agent's policy, instead it will sample random actions.")
 
