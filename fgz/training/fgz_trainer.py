@@ -385,8 +385,9 @@ class FGZTrainer:
         self.fmc.vec_env.set_target_logit(target_logit)
 
         # TODO: manage FMC device more carefully.
-        self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
+        # self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
 
+        video_path = None
         if save_video:
             video_path = f"./train/{self.run_name}/eval_{self.train_steps_taken}_{minerl_environment_id}.mp4"
             video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, (640, 360))
@@ -394,7 +395,7 @@ class FGZTrainer:
         step = 0
         while True:
             embedding = self.agent.forward_observation(obs, return_embedding=True)
-            self.fmc.vec_env.set_all_states(embedding.squeeze().cpu())
+            self.fmc.vec_env.set_all_states(embedding.squeeze())
             self.fmc.reset()
             # self.fmc.simulate(self.config.unroll_steps)
             self.fmc.simulate(self.config.fmc_steps)
@@ -431,6 +432,9 @@ class FGZTrainer:
             step += 1
 
         env.close()
+        
+        if save_video:
+            return video_path
 
     def save(self, directory: str = "./train", filename: str = None):
         current_trajectory_window = self.current_trajectory_window

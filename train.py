@@ -78,7 +78,11 @@ def run_training(
         if (train_step + 1) % evaluate_save_video_every== 0:
             task_id = trainer.config.enabled_tasks[0]
             eval_env_id = TASKS[task_id]["dataset_dir"]
-            trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=32, force_no_escape=True)
+            video_filepath = trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=32, force_no_escape=True)
+
+            if trainer.config.use_wandb:
+                wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
+
 
 def main(
     use_wandb: bool, 
