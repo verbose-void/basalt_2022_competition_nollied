@@ -247,7 +247,9 @@ class FGZTrainer:
         # total_consistency_loss *= 0.001
 
         classification_loss = total_loss
-        total_loss += total_consistency_loss
+
+        # NOTE: this coefficient can be 0.
+        total_loss += total_consistency_loss * self.config.consistency_loss_coeff
 
         return total_loss, total_consistency_loss, classification_loss
 

@@ -43,6 +43,7 @@ class FGZConfig:
 
     batch_size: int = 16
     learning_rate = 0.00008
+    consistency_loss_coeff: float = 0.0  # if 0, consistency loss is ignored.
 
     num_walkers: int = 128
     fmc_steps: int = 16

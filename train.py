@@ -86,6 +86,7 @@ def main(
     num_walkers: int,
     fmc_random_policy: bool,
     learning_rate: float,
+    consistency_loss_coeff: float,
 ):
     """
     This function will be called for training phase.
@@ -110,6 +111,7 @@ def main(
         fmc_random_policy=fmc_random_policy,
         learning_rate=learning_rate,
         batch_size=batch_size,
+        consistency_loss_coeff=consistency_loss_coeff,
     )
 
     print(f"Running with config: {config}")
@@ -147,6 +149,9 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--consistency-loss-coeff", type=float, default=0.0)
+    parser.add_argument("--learning-rate", type=float, default=0.00008)
+
     parser.add_argument("--train-steps", type=int, default=3000)
     parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
 
