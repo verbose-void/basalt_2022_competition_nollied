@@ -361,7 +361,8 @@ class FGZTrainer:
 
         self.train_steps_taken += 1
 
-        return logit_accuracy
+        # return logit_accuracy
+        return -total_loss
 
     @torch.no_grad()
     def evaluate(
@@ -387,7 +388,7 @@ class FGZTrainer:
         self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
 
         if save_video:
-            video_path = f"./train/{self.run_name}/eval_{self.train_steps_taken}.mp4"
+            video_path = f"./train/{self.run_name}/eval_{self.train_steps_taken}_{minerl_environment_id}.mp4"
             video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, (640, 360))
 
         step = 0

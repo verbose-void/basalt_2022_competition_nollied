@@ -21,7 +21,7 @@ from fgz.architecture.dynamics_function import (
 from fgz.loading import get_agent
 from fgz.training.fgz_trainer import FGZTrainer
 from fgz.data_utils.data_handler import DataHandler
-from fgz_config import FGZConfig
+from fgz_config import TASKS, FGZConfig
 
 try:
     import wandb
@@ -57,24 +57,28 @@ def get_data_handler(config: FGZConfig, agent):
 
 
 def run_training(
-    trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10
+    trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10, evaluate_save_video_every: int = 100
 ):
 
-    best_acc = 0.0
+    best_score = 0.0
 
     for train_step in tqdm(range(train_steps), desc="Training"):
-        acc = trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
+        score = trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
 
         if train_step % checkpoint_every == 0:
-            trainer.save("./train")
+            trainer.save("./train/checkpoints")
 
         if lr_scheduler is not None:
             lr_scheduler.step()
 
-        if acc > best_acc:
-            best_acc = acc
-            trainer.save("./train", f"./train/best_acc_{trainer.run_name}.pth")
+        if score >= best_score:
+            best_score = score
+            trainer.save("./train/checkpoints/", f"./train/checkpoints/{trainer.run_name}_best.pth")
 
+        if (train_step + 1) % checkpoint_every:
+            task_id = trainer.config.enabled_tasks[0]
+            eval_env_id = TASKS[task_id]["dataset_dir"]
+            trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=32, force_no_escape=True)
 
 def main(
     use_wandb: bool, 
