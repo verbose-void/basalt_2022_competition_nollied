@@ -17,9 +17,9 @@ class XIRLTrainer:
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
         self.agent = load_agent(model_path, weights_path)
 
-        self.dynamics_function = DynamicsFunction(embedder_layers=2)
+        self.dynamics_function = DynamicsFunction(embedder_layers=2, state_embedding_size=2048).to(self.agent.device)
 
-        self.optimizer = torch.optim.Adam(self.dynamics_function.parameters(), lr=0.01)
+        self.optimizer = torch.optim.Adam(self.dynamics_function.parameters(), lr=0.001)
 
         self.data_handler = XIRLDataHandler(
             dataset_path, self.agent, self.dynamics_function
@@ -63,6 +63,8 @@ class XIRLTrainer:
             # first state should be the actual state.
             if unroll_state is None:
                 unroll_state = actual_state
+            else:
+                unroll_state = unroll_state.squeeze()
 
             unroll_state = self.dynamics_function.forward_action(
                 unroll_state.unsqueeze(0), action, use_discrim=False
@@ -71,17 +73,15 @@ class XIRLTrainer:
             # TODO: calculate distance between unroll state and actual state. that is the "self consistency loss"
             self_consistency += (unroll_state - actual_state) ** 2
 
-        print(self_consistency)
+        # print(self_consistency)
 
         return torch.mean(self_consistency)
 
     def train_on_pair(self, num_frame_samples: int = 20):
-        (self.t0, self.a0), (self.t1, self.a1) = self.data_handler.sample_pair(
-            max_frames=10
-        )
+        (self.t0, self.a0), (self.t1, self.a1) = self.data_handler.sample_pair()
         # TODO: start another process for gathering the next video to hide latency.
-
         print("bytes for the pair of trajectories:", self.get_nbytes_stored())
+
 
         self.dynamics_function.train()
         self.optimizer.zero_grad()
@@ -104,7 +104,7 @@ class XIRLTrainer:
             )
 
             frame_mult = torch.arange(
-                start=1, end=len(beta) + 1, dtype=float
+                start=1, end=len(beta) + 1, dtype=float, device=beta.device
             ).float() / len(beta)
             mu = torch.matmul(frame_mult, beta)
 
@@ -116,7 +116,7 @@ class XIRLTrainer:
             cycle_loss = (mu - t) ** 2
             self_consistency_loss = self.unroll()
 
-            print(cycle_loss.item(), self_consistency_loss.item())
+            # print(cycle_loss.item(), self_consistency_loss.item())
             total_loss += cycle_loss
 
         loss = total_loss / num_frame_samples

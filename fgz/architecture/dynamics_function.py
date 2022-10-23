@@ -99,7 +99,7 @@ class DynamicsFunction(torch.nn.Module):
         assert (
             state_embedding.dim() <= 2
             and state_embedding.shape[-1] == self.state_embedding_size
-        ), str(state_embedding.shape)
+        ), (str(state_embedding.shape), self.state_embedding_size)
 
         button_embedding = self.button_embedder.forward(buttons_vector)
         camera_embedding = self.camera_embedder.forward(camera_vector)

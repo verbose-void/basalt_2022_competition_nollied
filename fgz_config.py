@@ -22,12 +22,12 @@ VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
 
 @dataclass
 class FGZConfig:
-    model_filename: str = "foundation-model-1x.model"
-    # model_filename: str = "foundation-model-2x.model"
+    # model_filename: str = "foundation-model-1x.model"
+    model_filename: str = "foundation-model-2x.model"
     # model_filename: str = "foundation-model-3x.model"
 
-    weights_filename: str = "foundation-model-1x.weights"
-    # weights_filename: str = "rl-from-early-game-2x.weights"
+    # weights_filename: str = "foundation-model-1x.weights"
+    weights_filename: str = "rl-from-early-game-2x.weights"
 
     # enable tasks according to the indices of the `TASKS` list. 0="BuildHouse", etc.
     # ordering of these tasks determines the ordering of the responsibility of the discriminator logits.
