@@ -26,7 +26,7 @@ def vectorize_minerl_action(action: Dict, camera_scale: float = 180):
     # group movement keys
     button_vec = _vectorize_buttons(action)
     camera_vec = torch.tensor(action["camera"], dtype=float) / camera_scale
-    return button_vec.float(), camera_vec.float()
+    return button_vec.float(), camera_vec.squeeze().float()
 
 
 def vectorize_minerl_actions(actions: List[Dict], camera_scale: float = 180, device=None):

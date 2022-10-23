@@ -230,8 +230,11 @@ class MineRLAgent:
             self._dummy_first,
             return_embedding=return_embedding,
         )
+
+
         if return_embedding:
-            embedding, state_out = ret
+            embedding, state_out, pi_logits = ret
+            self.last_pd = pi_logits
             self.hidden_state = state_out  # TODO: should we do this?
             return embedding
 
@@ -240,6 +243,9 @@ class MineRLAgent:
         return pd, v
 
     def sample_action(self):
-        agent_action = self.pi_head.sample(self.last_pd, deterministic=False)
+        if self.last_pd is None:
+            raise ValueError("Must call forward_observation first.")
+
+        agent_action = self.policy.pi_head.sample(self.last_pd, deterministic=False)
         minerl_action = self._agent_action_to_env(agent_action)
         return minerl_action
