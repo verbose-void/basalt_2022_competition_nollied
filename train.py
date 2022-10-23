@@ -80,6 +80,7 @@ def main(
     use_wandb: bool, 
     fmc_logit: bool, 
     batch_size: int, 
+    unroll_steps: int,
     train_steps: int, 
     tasks: List[int],
     fmc_steps: int,
@@ -105,7 +106,7 @@ def main(
         disable_fmc_detection=not fmc_logit,  # if true, only classification will occur.
         use_wandb=use_wandb,
         verbose=True,
-        unroll_steps=4,
+        unroll_steps=unroll_steps,
         fmc_steps=fmc_steps,
         num_walkers=num_walkers,
         fmc_random_policy=fmc_random_policy,
@@ -151,6 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--consistency-loss-coeff", type=float, default=0.0)
     parser.add_argument("--learning-rate", type=float, default=0.00008)
+    parser.add_argument("--unroll-steps", type=int, default=4)
 
     parser.add_argument("--train-steps", type=int, default=3000)
     parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
