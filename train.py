@@ -75,7 +75,7 @@ def run_training(
             best_score = score
             trainer.save("./train/checkpoints/", f"./train/checkpoints/{trainer.run_name}_best.pth")
 
-        if (train_step + 1) % checkpoint_every == 0:
+        if (train_step + 1) % evaluate_save_video_every== 0:
             task_id = trainer.config.enabled_tasks[0]
             eval_env_id = TASKS[task_id]["dataset_dir"]
             trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=32, force_no_escape=True)
