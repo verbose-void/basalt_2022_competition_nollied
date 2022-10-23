@@ -12,6 +12,7 @@ from fractal_zero.vectorized_environment import VectorizedEnvironment
 
 
 def _dist(vec0, vec1):
+# def _l2_distance(vec0, vec1):
     if vec0.dim() > 2:
         vec0 = vec0.flatten(start_dim=1)
     elif vec0.dim() == 1:
@@ -53,7 +54,8 @@ class FMC:
         balance: float = 1.0,
         disable_cloning: bool = False,
         use_average_rewards: bool = False,
-        similarity_function: Callable = _l2_distance,
+        similarity_function: Callable = _dist,
+        # similarity_function: Callable = _l2_distance,
         freeze_best: bool = True,
         track_tree: bool = True,
         prune_tree: bool = True,
