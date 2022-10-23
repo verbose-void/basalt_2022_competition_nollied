@@ -41,6 +41,9 @@ class FGZConfig:
 
     verbose: bool = False
 
+    batch_size: int = 16
+    learning_rate = 0.00008
+
     num_walkers: int = 128
     fmc_steps: int = 16
     unroll_steps: int = 4

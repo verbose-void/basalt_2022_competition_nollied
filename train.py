@@ -85,6 +85,7 @@ def main(
     fmc_steps: int,
     num_walkers: int,
     fmc_random_policy: bool,
+    learning_rate: float,
 ):
     """
     This function will be called for training phase.
@@ -107,6 +108,8 @@ def main(
         fmc_steps=fmc_steps,
         num_walkers=num_walkers,
         fmc_random_policy=fmc_random_policy,
+        learning_rate=learning_rate,
+        batch_size=batch_size,
     )
 
     print(f"Running with config: {config}")
@@ -121,7 +124,7 @@ def main(
     # setup optimizer and learning rate schedule
     dynamics_function_optimizer = torch.optim.Adam(
         dynamics_env.dynamics_function.parameters(),
-        lr=0.00008,
+        lr=config.learning_rate,
         # weight_decay=1e-4,
     )
     lr_scheduler = None
@@ -133,7 +136,7 @@ def main(
         agent, fmc, data_handler, dynamics_function_optimizer, config=config
     )
 
-    run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=batch_size)
+    run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=config.batch_size)
 
 
 if __name__ == "__main__":
