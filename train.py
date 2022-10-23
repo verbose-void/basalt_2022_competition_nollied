@@ -46,7 +46,7 @@ def get_dynamics_environment(config: FGZConfig, agent: MineRLAgent) -> MineRLDyn
     dynamics_function = get_dynamics_function(config)
 
     return MineRLDynamicsEnvironment(
-        config.action_space, dynamics_function=dynamics_function, agent=agent, n=config.num_walkers
+        config.action_space, dynamics_function=dynamics_function, agent=agent, n=config.num_walkers, use_agent_policy=not config.fmc_random_policy
     )
 
 
