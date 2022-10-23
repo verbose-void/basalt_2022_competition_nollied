@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
+import cv2
 
 from tqdm import tqdm
 
@@ -367,6 +368,7 @@ class FGZTrainer:
         self,
         minerl_environment_id: str,
         render: bool = False,
+        save_video: bool = False,
         max_steps: int = None,
         force_no_escape: bool = False,
     ):
@@ -383,6 +385,10 @@ class FGZTrainer:
 
         # TODO: manage FMC device more carefully.
         self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
+
+        if save_video:
+            video_path = f"./train/{self.run_name}/eval_{self.train_steps_taken}.mp4"
+            video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, (640, 360))
 
         step = 0
         while True:
@@ -410,6 +416,9 @@ class FGZTrainer:
 
             if render:
                 env.render()
+
+            if save_video:
+                video_recorder.write(obs["pov"][..., ::-1])
 
             if max_steps is not None:
                 if step >= max_steps:
