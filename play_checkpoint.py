@@ -12,7 +12,8 @@ trainer = FGZTrainer.load(**args)
 
 # env_id = "MineRLBasaltMakeWaterfall-v0"
 env_id = "MineRLBasaltFindCave-v0"
+render = False
 
 trainer.evaluate(
-    env_id, render=True, max_steps=256, force_no_escape=True
+    env_id, render=render, max_steps=256, force_no_escape=True
 )

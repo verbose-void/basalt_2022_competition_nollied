@@ -41,6 +41,8 @@ class FGZConfig:
 
     verbose: bool = False
 
+    consistency_loss_coeff: float = 0.0  # if 0, consistency loss is ignored.
+
     num_walkers: int = 128
     fmc_steps: int = 16
     unroll_steps: int = 4
