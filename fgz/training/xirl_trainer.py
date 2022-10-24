@@ -34,9 +34,8 @@ class XIRLModel(torch.nn.Module):
 
         x = self.img_preprocess(frames).unsqueeze(0)  # ficticious time-dimension
         x = self.img_process(x)
-        x = x[:, 0]  # remove time dim
+        x = x[0]  # remove time dim
         return x
-
 
 # @ray.remote
 class XIRLTrainer:
@@ -53,7 +52,7 @@ class XIRLTrainer:
         assert len(self.config.enabled_tasks) == 1, "XIRL only supports single tasks currently."
         dataset_path = self.config.dataset_paths[0]
         self.data_handler = XIRLDataHandler.remote(
-            dataset_path, config.model_path, config.weights_path, device=data_device
+            dataset_path, device=data_device
         )
 
         print("Model is using device", self.device)
@@ -171,6 +170,8 @@ class XIRLTrainer:
             self.embedded_t0 = self.embed_trajectory(self.t0)
             self.embedded_t1 = self.embed_trajectory(self.t1)
 
+        print(self.embedded_t0.shape)
+
         # self.dynamics_function.train()
 
         max_index = len(self.t0)
@@ -187,15 +188,24 @@ class XIRLTrainer:
             index_preds = []
             index_targets = []
 
-            # TODO: vectorize better
-            for _ in range(self.config.batch_size):
-                # pick random frame in t0
-                self.chosen_frame_index = torch.randint(
-                    low=0, high=len(self.t0), size=(1,)
-                ).item()
+            chosen_indices = torch.randint(
+                low=0, high=max_index, size=(self.config.batch_size,)
+            )
+            frames = self.t0[chosen_indices].to(self.device)
+            embeddings = self.model.embed(frames)
 
-                # embed again *with gradient*
-                self.ui = self.model.embed(self.t0[self.chosen_frame_index].to(self.device))
+            # TODO: vectorize better
+            for i in range(self.config.batch_size):
+                # pick random frame in t0
+                # self.chosen_frame_index = torch.randint(
+                #     low=0, high=len(self.t0), size=(1,)
+                # ).item()
+
+                # # embed again *with gradient*
+                # self.ui = self.model.embed(self.t0[self.chosen_frame_index].to(self.device))
+
+                self.chosen_frame_index = chosen_indices[i]
+                self.ui = embeddings[i]
 
                 # calculate cycle MSE loss
                 v_squiggly = self.soft_nearest_neighbor(
