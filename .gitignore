@@ -1,6 +1,7 @@
 .vscode
 logs
 
+*.swp
 data/*
 wandb/*
 */wandb/*
