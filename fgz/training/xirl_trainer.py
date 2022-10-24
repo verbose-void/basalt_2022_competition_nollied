@@ -26,7 +26,12 @@ class XIRLModel(torch.nn.Module):
         self.img_preprocess = agent.policy.net.img_preprocess
         self.img_process = agent.policy.net.img_process
 
-    def forward(self, frames):
+        self.index_predictor = torch.nn.Sequential(
+            torch.nn.ReLU(),
+            torch.nn.Linear(2048, 1),
+        )
+
+    def embed(self, frames):
         if frames.dim() == 3:
             frames = frames.unsqueeze(0)
         elif frames.dim() != 4:
@@ -36,6 +41,9 @@ class XIRLModel(torch.nn.Module):
         x = self.img_process(x)
         x = x[:, 0]  # remove time dim
         return x
+
+    def predict_index(self, x):
+        return self.index_predictor(x)
 
 
 # @ray.remote
@@ -56,7 +64,8 @@ class XIRLTrainer:
             dataset_path, config.model_path, config.weights_path, device=data_device
         )
 
-        self.model = XIRLModel(self.config)
+        print("Model is using device", self.device)
+        self.model = XIRLModel(self.config).to(self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5)
 
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
@@ -135,20 +144,17 @@ class XIRLTrainer:
     def embed_trajectory(self, t):
         embedded = torch.zeros(size=(len(t), 2048), device=self.device, dtype=float)
 
-        print(embedded.shape)
-
         bs = self.config.batch_size
 
         i = 0
         while i < len(t):
-
             x = t[i:i+bs]
             batch = x.to(self.device)
-            embedded[i:i+bs] = self.model(batch)
+            embedded[i:i+bs] = self.model.embed(batch)
 
-            print(i, batch.shape, embedded.mean())
             i += len(x)
-        exit()
+
+        return embedded.float()
 
     def train_on_pair(self):
         assert self.config.num_frames_per_pair % self.config.batch_size == 0
@@ -171,10 +177,12 @@ class XIRLTrainer:
         self.model.eval()
         with torch.no_grad():
             self.embedded_t0 = self.embed_trajectory(self.t0)
-            # self.embedded_t0 = self.model(self.t0)
-            # self.embedded_t1 = self.model(self.t1)
+            self.embedded_t1 = self.embed_trajectory(self.t1)
 
         print(self.embedded_t0.shape, self.embedded_t1.shape)
+
+        y = self.model.predict_index(self.embedded_t0)
+        print(y.shape)
         exit()
 
 
