@@ -175,12 +175,17 @@ class XIRLTrainer:
 
         max_index = len(self.t0)
 
-        # num_batches = self.config.num_frames_per_pair // self.config.batch_size
-        num_batches = len(self.t0) // self.config.batch_size
+        num_frames = min(max_index, self.config.num_frames_per_pair)
+        num_batches = num_frames // self.config.batch_size
+
+        # num_batches = len(self.t0) // self.config.batch_size
         for _ in range(num_batches):
             self.optimizer.zero_grad()
 
             total_loss = 0
+
+            index_preds = []
+            index_targets = []
 
             # TODO: vectorize better
             for _ in range(self.config.batch_size):
@@ -205,8 +210,11 @@ class XIRLTrainer:
                 ).float()# / len(beta)
                 mu = torch.matmul(frame_mult, beta) # / len(beta)
 
+                index_preds.append(mu.item())
+                index_targets.append(self.chosen_frame_index)
+
                 # print(mu, self.chosen_frame_index)
-                print(mu / max_index, self.chosen_frame_index / max_index)
+                # print(mu / max_index, self.chosen_frame_index / max_index)
 
                 # divide both by total num frames to make indices in more reasonable range
                 # mu /= total_frames
@@ -216,21 +224,26 @@ class XIRLTrainer:
                 cycle_loss = (1 + ((mu - t) / max_index)) ** 2
                 # self_consistency_loss = self.unroll()
 
-                print(cycle_loss, total_loss)
+                # print(cycle_loss, total_loss)
 
                 # print(cycle_loss.item(), self_consistency_loss.item())
                 total_loss += cycle_loss
+
+            unnormalized_mse = torch.sum((torch.tensor(index_preds) - torch.tensor(index_targets)) ** 2) / len(index_preds)
 
             tcc_loss = total_loss / self.config.batch_size
             if self.config.use_wandb:
                 wandb.log({
                     "tcc_loss": tcc_loss,
                     "data_bytes": nbytes,
+                    "unnormalized_mse": unnormalized_mse,
                 })
 
             if self.config.verbose:
+                print("---------------")
                 print("avg loss", tcc_loss.item())
                 print("data bytes", nbytes)
+                print("un-normalized MSE", unnormalized_mse)
 
             tcc_loss.backward()
             self.optimizer.step()
