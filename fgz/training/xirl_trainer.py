@@ -26,11 +26,6 @@ class XIRLModel(torch.nn.Module):
         self.img_preprocess = agent.policy.net.img_preprocess
         self.img_process = agent.policy.net.img_process
 
-        self.index_predictor = torch.nn.Sequential(
-            torch.nn.ReLU(),
-            torch.nn.Linear(2048, 1),
-        )
-
     def embed(self, frames):
         if frames.dim() == 3:
             frames = frames.unsqueeze(0)
@@ -41,9 +36,6 @@ class XIRLModel(torch.nn.Module):
         x = self.img_process(x)
         x = x[:, 0]  # remove time dim
         return x
-
-    def predict_index(self, x):
-        return self.index_predictor(x)
 
 
 # @ray.remote
@@ -90,7 +82,7 @@ class XIRLTrainer:
 
         # similarity_vector = torch.zeros(size=(len(other_embeddings),), dtype=float)
 
-        expanded_frame_embedding = frame_embedding.unsqueeze(0).expand(
+        expanded_frame_embedding = frame_embedding.expand(
             len(other_embeddings), -1
         )
 
@@ -174,57 +166,57 @@ class XIRLTrainer:
 
         print(self.t0.shape, self.t1.shape)
 
-        self.model.eval()
+        self.model.train()
         with torch.no_grad():
             self.embedded_t0 = self.embed_trajectory(self.t0)
             self.embedded_t1 = self.embed_trajectory(self.t1)
 
-        print(self.embedded_t0.shape, self.embedded_t1.shape)
-
-        y = self.model.predict_index(self.embedded_t0)
-        print(y.shape)
-        exit()
-
-
         # self.dynamics_function.train()
 
-        num_batches = self.config.num_frames_per_pair // self.config.batch_size
+        max_index = len(self.t0)
+
+        # num_batches = self.config.num_frames_per_pair // self.config.batch_size
+        num_batches = len(self.t0) // self.config.batch_size
         for _ in range(num_batches):
             self.optimizer.zero_grad()
 
             total_loss = 0
 
+            # TODO: vectorize better
             for _ in range(self.config.batch_size):
                 # pick random frame in t0
                 self.chosen_frame_index = torch.randint(
                     low=0, high=len(self.t0), size=(1,)
                 ).item()
 
-                self.ui = self.t0[self.chosen_frame_index]
-
-                self.model(self.ui)
-                exit()
+                # embed again *with gradient*
+                self.ui = self.model.embed(self.t0[self.chosen_frame_index].to(self.device))
 
                 # calculate cycle MSE loss
                 v_squiggly = self.soft_nearest_neighbor(
-                    self.ui, self.t1, return_similarity_vector=False
+                    self.ui, self.embedded_t1, return_similarity_vector=False
                 )
                 beta = self.soft_nearest_neighbor(
-                    v_squiggly, self.t0, return_similarity_vector=True
+                    v_squiggly, self.embedded_t0, return_similarity_vector=True
                 )
 
                 frame_mult = torch.arange(
                     start=1, end=len(beta) + 1, dtype=float, device=beta.device
-                ).float() / len(beta)
+                ).float()# / len(beta)
                 mu = torch.matmul(frame_mult, beta) # / len(beta)
+
+                # print(mu, self.chosen_frame_index)
+                print(mu / max_index, self.chosen_frame_index / max_index)
 
                 # divide both by total num frames to make indices in more reasonable range
                 # mu /= total_frames
-                t = self.chosen_frame_index / len(beta)
+                t = self.chosen_frame_index# / len(beta)
                 # print(mu, t, len(beta))
 
-                cycle_loss = (mu - t) ** 2
+                cycle_loss = (1 + ((mu - t) / max_index)) ** 2
                 # self_consistency_loss = self.unroll()
+
+                print(cycle_loss, total_loss)
 
                 # print(cycle_loss.item(), self_consistency_loss.item())
                 total_loss += cycle_loss
@@ -236,7 +228,10 @@ class XIRLTrainer:
                     "data_bytes": nbytes,
                 })
 
-            # print("avg loss", tcc_loss.item())
+            if self.config.verbose:
+                print("avg loss", tcc_loss.item())
+                print("data bytes", nbytes)
+
             tcc_loss.backward()
             self.optimizer.step()
 

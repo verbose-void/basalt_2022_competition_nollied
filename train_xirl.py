@@ -190,7 +190,7 @@ def main(
 
         # TODO: real checkpoints
         if i % 10 == 0:
-            torch.save(trainer.dynamics_function, f"train/xirl_dynamics_{i}.pth")
+            torch.save(trainer.model, f"train/xirl_model_{i}.pth")
 
 
 if __name__ == "__main__":
