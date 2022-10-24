@@ -59,7 +59,7 @@ def get_data_handler(config: FGZConfig, agent):
 
 
 def run_training(
-    trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10, evaluate_save_video_every: int = 100
+    trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10, evaluate_save_video_every: int = 5 
 ):
 
     evaluator = Evaluator.remote()
@@ -84,9 +84,9 @@ def run_training(
             best_path = trainer.save("./train/checkpoints/", f"./train/checkpoints/{trainer.run_name}_best.pth")
             new_best = True
 
-        if (train_step + 1) % evaluate_save_video_every == 0:
+        if (train_step) % evaluate_save_video_every == 0:
             if video_filepath is not None:
-                video_filepath = ray.get()
+                video_filepath = ray.get(video_filepath)
                 if trainer.config.use_wandb:
                     wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
 

@@ -5,7 +5,7 @@ from fgz_config import TASKS
 
 import torch
 
-@ray.remote()
+@ray.remote
 class Evaluator:
 
     def evaluate(self, path_to_checkpoint) -> str:

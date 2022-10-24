@@ -6,12 +6,12 @@ from minerl.herobraine.env_specs.human_survival_specs import HumanSurvival
 from vpt.agent import MineRLAgent, ENV_KWARGS, validate_env
 
 
-def load_agent(model_path, weights_path):
+def load_agent(model_path, weights_path, device=None):
     agent_parameters = pickle.load(open(model_path, "rb"))
     policy_kwargs = agent_parameters["model"]["args"]["net"]["args"]
     pi_head_kwargs = agent_parameters["model"]["args"]["pi_head_opts"]
     pi_head_kwargs["temperature"] = float(pi_head_kwargs["temperature"])
-    agent = MineRLAgent(policy_kwargs=policy_kwargs, pi_head_kwargs=pi_head_kwargs)
+    agent = MineRLAgent(policy_kwargs=policy_kwargs, pi_head_kwargs=pi_head_kwargs, device=device)
     agent.load_weights(weights_path)
     return agent
 
