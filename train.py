@@ -87,6 +87,8 @@ def run_training(
             new_best = True
 
         if (train_step) % evaluate_save_video_every == 0:
+            print("Starting eval process...")
+
             if async_eval:
                 if video_filepath is not None:
                     video_filepath = ray.get(video_filepath)
@@ -94,17 +96,19 @@ def run_training(
                         wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
 
                 if new_best and best_path is not None:
+                    print("Evaluating the latest best path")
                     path_to_checkpoint = best_path
                 else:
+                    print("Evaluating the latest (not best) path")
                     path_to_checkpoint = last_path
 
-                print("Starting eval process...")
                 video_filepath = evaluator.evaluate.remote(path_to_checkpoint)
                 new_best = False
+
             else:
                 task_id = trainer.config.enabled_tasks[0]
                 eval_env_id = TASKS[task_id]["dataset_dir"]
-                video_filepath = trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=32, force_no_escape=True)
+                video_filepath = trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=128, force_no_escape=True)
                 if trainer.config.use_wandb:
                     wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
 
@@ -121,6 +125,7 @@ def main(
     fmc_random_policy: bool,
     learning_rate: float,
     consistency_loss_coeff: float,
+    save_video_every: int,
 ):
     """
     This function will be called for training phase.
@@ -150,7 +155,7 @@ def main(
 
     print(f"Running with config: {config}")
     if config.use_wandb:
-        wandb.init(project="fgz_all_tasks", config=config.asdict())
+        wandb.init(project="newest-fgz", config=config.asdict())
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     agent = get_agent(config)
@@ -172,7 +177,7 @@ def main(
         agent, fmc, data_handler, dynamics_function_optimizer, config=config
     )
 
-    run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=config.batch_size)
+    run_training(trainer, lr_scheduler, train_steps=train_steps, batch_size=config.batch_size, evaluate_save_video_every=save_video_every)
 
 
 if __name__ == "__main__":
@@ -186,6 +191,8 @@ if __name__ == "__main__":
     parser.add_argument("--consistency-loss-coeff", type=float, default=0.0)
     parser.add_argument("--learning-rate", type=float, default=0.00008)
     parser.add_argument("--unroll-steps", type=int, default=4)
+
+    parser.add_argument("--save-video-every", type=int, default=100)
 
     parser.add_argument("--train-steps", type=int, default=3000)
     parser.add_argument('--tasks', nargs="+", type=int, help="List of integers that correspond to the enabled tasks.", default=[2, 3])
