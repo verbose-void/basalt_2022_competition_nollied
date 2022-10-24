@@ -24,7 +24,8 @@ from fgz.loading import get_agent
 from fgz.training.fgz_trainer import FGZTrainer
 from fgz.training.xirl_trainer import XIRLTrainer
 from fgz.data_utils.data_handler import DataHandler
-from fgz_config import TASKS, FGZConfig
+# from fgz_config import TASKS, FGZConfig
+from xirl_config import XIRLConfig
 
 try:
     import wandb
@@ -34,84 +35,84 @@ except ImportError:
 coloredlogs.install(logging.DEBUG)
 
 
-def get_dynamics_function(config: FGZConfig):
-    # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
-    return DynamicsFunction(
-        state_embedding_size=2048,  # TODO: make automatic
-        discriminator_classes=config.num_discriminator_classes,
-        embedder_layers=4,
-        button_features=128,
-        camera_features=128,
-    )
-
-
-def get_dynamics_environment(config: FGZConfig, agent: MineRLAgent) -> MineRLDynamicsEnvironment:
-    dynamics_function = get_dynamics_function(config)
-
-    return MineRLDynamicsEnvironment(
-        config.action_space, dynamics_function=dynamics_function, agent=agent, n=config.num_walkers, use_agent_policy=not config.fmc_random_policy
-    )
-
-
-def get_data_handler(config: FGZConfig, agent):
-    return DataHandler(
-        config.dataset_paths, agent=agent, frames_per_window=config.unroll_steps
-    )
-
-
-def run_training(
-        trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10, evaluate_save_video_every: int = 100, async_eval: bool = True,
-):
-
-    if async_eval:
-        evaluator = Evaluator.remote()
-
-    video_filepath = None
-
-    best_score = 0.0
-    best_path = None
-    new_best = False
-    last_path = None
-
-    for train_step in tqdm(range(train_steps), desc="Training"):
-        score = trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
-
-        if train_step % checkpoint_every == 0:
-            last_path = trainer.save("./train/checkpoints")
-
-        if lr_scheduler is not None:
-            lr_scheduler.step()
-
-        if score >= best_score:
-            best_score = score
-            best_path = trainer.save("./train/checkpoints/", f"./train/checkpoints/{trainer.run_name}_best.pth")
-            new_best = True
-
-        if (train_step) % evaluate_save_video_every == 0:
-            print("Starting eval process...")
-
-            if async_eval:
-                if video_filepath is not None:
-                    video_filepath = ray.get(video_filepath)
-                    if trainer.config.use_wandb:
-                        wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
-
-                if new_best and best_path is not None:
-                    print("Evaluating the latest best path")
-                    path_to_checkpoint = best_path
-                else:
-                    print("Evaluating the latest (not best) path")
-                    path_to_checkpoint = last_path
-
-                video_filepath = evaluator.evaluate.remote(path_to_checkpoint)
-                new_best = False
-
-            else:
-                task_id = trainer.config.enabled_tasks[0]
-                eval_env_id = TASKS[task_id]["dataset_dir"]
-                video_filepath = trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=128, force_no_escape=True)
-                if trainer.config.use_wandb:
-                    wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
+# def get_dynamics_function(config: FGZConfig):
+#     # TODO: should we initialize the weights of the dynamics function with pretrained agent weights of some kind?
+#     return DynamicsFunction(
+#         state_embedding_size=2048,  # TODO: make automatic
+#         discriminator_classes=config.num_discriminator_classes,
+#         embedder_layers=4,
+#         button_features=128,
+#         camera_features=128,
+#     )
+# 
+# 
+# def get_dynamics_environment(config: FGZConfig, agent: MineRLAgent) -> MineRLDynamicsEnvironment:
+#     dynamics_function = get_dynamics_function(config)
+# 
+#     return MineRLDynamicsEnvironment(
+#         config.action_space, dynamics_function=dynamics_function, agent=agent, n=config.num_walkers, use_agent_policy=not config.fmc_random_policy
+#     )
+# 
+# 
+# def get_data_handler(config: FGZConfig, agent):
+#     return DataHandler(
+#         config.dataset_paths, agent=agent, frames_per_window=config.unroll_steps
+#     )
+# 
+# 
+# def run_training(
+#         trainer, lr_scheduler, train_steps: int, batch_size: int, checkpoint_every: int = 10, evaluate_save_video_every: int = 100, async_eval: bool = True,
+# ):
+# 
+#     if async_eval:
+#         evaluator = Evaluator.remote()
+# 
+#     video_filepath = None
+# 
+#     best_score = 0.0
+#     best_path = None
+#     new_best = False
+#     last_path = None
+# 
+#     for train_step in tqdm(range(train_steps), desc="Training"):
+#         score = trainer.train_sub_trajectories(batch_size=batch_size, use_tqdm=False)
+# 
+#         if train_step % checkpoint_every == 0:
+#             last_path = trainer.save("./train/checkpoints")
+# 
+#         if lr_scheduler is not None:
+#             lr_scheduler.step()
+# 
+#         if score >= best_score:
+#             best_score = score
+#             best_path = trainer.save("./train/checkpoints/", f"./train/checkpoints/{trainer.run_name}_best.pth")
+#             new_best = True
+# 
+#         if (train_step) % evaluate_save_video_every == 0:
+#             print("Starting eval process...")
+# 
+#             if async_eval:
+#                 if video_filepath is not None:
+#                     video_filepath = ray.get(video_filepath)
+#                     if trainer.config.use_wandb:
+#                         wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
+# 
+#                 if new_best and best_path is not None:
+#                     print("Evaluating the latest best path")
+#                     path_to_checkpoint = best_path
+#                 else:
+#                     print("Evaluating the latest (not best) path")
+#                     path_to_checkpoint = last_path
+# 
+#                 video_filepath = evaluator.evaluate.remote(path_to_checkpoint)
+#                 new_best = False
+# 
+#             else:
+#                 task_id = trainer.config.enabled_tasks[0]
+#                 eval_env_id = TASKS[task_id]["dataset_dir"]
+#                 video_filepath = trainer.evaluate(eval_env_id, render=False, save_video=True, max_steps=128, force_no_escape=True)
+#                 if trainer.config.use_wandb:
+#                     wandb.log({"video": wandb.Video(video_filepath, fps=4, format="gif")})
 
 
 def main(
@@ -127,6 +128,7 @@ def main(
     learning_rate: float,
     consistency_loss_coeff: float,
     save_video_every: int,
+    num_frames_per_pair: int,
 ):
     """
     This function will be called for training phase.
@@ -138,7 +140,7 @@ def main(
     # enabled_tasks = [2, 3]  # cave and waterfall
     # enabled_tasks = [0, 1, 2, 3]  # all
 
-    config = FGZConfig(
+    config = XIRLConfig(
         model_filename="foundation-model-2x.model",
         weights_filename="rl-from-early-game-2x.weights",
         enabled_tasks=tasks,
@@ -152,11 +154,12 @@ def main(
         learning_rate=learning_rate,
         batch_size=batch_size,
         consistency_loss_coeff=consistency_loss_coeff,
+        num_frames_per_pair=num_frames_per_pair,
     )
 
     print(f"Running with config: {config}")
     if config.use_wandb:
-        wandb.init(project="newest-fgz", config=config.asdict())
+        wandb.init(project="xirl", config=config.asdict())
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     # agent = get_agent(config)
@@ -182,7 +185,12 @@ def main(
 
     trainer = XIRLTrainer(config)
 
-    trainer.train_on_pair()
+    for i in tqdm(range(train_steps), desc="XIRL Training"):
+        trainer.train_on_pair()
+
+        # TODO: real checkpoints
+        if i % 10 == 0:
+            torch.save(trainer.dynamics_function, f"train/xirl_dynamics_{i}.pth")
 
 
 if __name__ == "__main__":
@@ -192,10 +200,13 @@ if __name__ == "__main__":
         "--use-wandb", action="store_true", help="Enables usage of weights and biases."
     )
 
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--num-frames-per-pair", type=int, default=256)
+
+    parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--consistency-loss-coeff", type=float, default=0.0)
-    parser.add_argument("--learning-rate", type=float, default=0.00008)
+    parser.add_argument("--learning-rate", type=float, default=0.000001)
     parser.add_argument("--unroll-steps", type=int, default=4)
+
 
     parser.add_argument("--save-video-every", type=int, default=100)
 
