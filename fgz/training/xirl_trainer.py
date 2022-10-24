@@ -6,24 +6,37 @@ from fgz.architecture.dynamics_function import DynamicsFunction
 
 from fgz.data_utils.xirl_data import XIRLDataHandler
 from vpt.run_agent import load_agent
+from fgz_config import FGZConfig, TASKS
 
 import torch
 
 
 # @ray.remote
 class XIRLTrainer:
-    def __init__(self, dataset_path: str, model_path: str, weights_path: str):
+    # def __init__(self, dataset_path: str, model_path: str, weights_path: str):
+    def __init__(self, config: FGZConfig):
+        self.config = config
+        
+        # TODO: config
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+        assert len(self.config.enabled_tasks) == 1, "XIRL only supports single tasks currently."
+        dataset_path = self.config.dataset_paths[0]
+        self.data_handler = XIRLDataHandler.remote(
+            dataset_path, config.model_path, config.weights_path, device=device
+        )
 
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
-        self.agent = load_agent(model_path, weights_path)
+        # self.agent = load_agent(model_path, weights_path)
 
-        self.dynamics_function = DynamicsFunction(embedder_layers=2, state_embedding_size=2048).to(self.agent.device)
+        self.dynamics_function = DynamicsFunction(embedder_layers=4, state_embedding_size=2048).to(device)
+        self.optimizer = torch.optim.Adam(self.dynamics_function.parameters(), lr=config.learning_rate)
 
-        self.optimizer = torch.optim.Adam(self.dynamics_function.parameters(), lr=0.001)
+        # self.data_handler = XIRLDataHandler(
+        #     dataset_path, self.agent, self.dynamics_function
+        # )
 
-        self.data_handler = XIRLDataHandler(
-            dataset_path, self.agent, self.dynamics_function
-        )
+        self.get_next_data()
 
     def soft_nearest_neighbor(
         self,
@@ -49,6 +62,7 @@ class XIRLTrainer:
             return alpha_k
 
         return torch.matmul(alpha_k, other_embeddings)
+
 
     def unroll(self):
         unroll_steps = 8
@@ -77,8 +91,17 @@ class XIRLTrainer:
 
         return torch.mean(self_consistency)
 
+    def get_next_data(self):
+        print("Asynchronously gathering the next trajectory pair...")
+        self.next_data = self.data_handler.sample_pair.remote()
+
     def train_on_pair(self, num_frame_samples: int = 20):
-        (self.t0, self.a0), (self.t1, self.a1) = self.data_handler.sample_pair()
+        print("ray.getting the asynchronously gathered trajectory pair...")
+        (self.t0, self.a0), (self.t1, self.a1) = ray.get(self.next_data)
+
+        # latency hidden data reading
+        self.get_next_data()
+
         # TODO: start another process for gathering the next video to hide latency.
         print("bytes for the pair of trajectories:", self.get_nbytes_stored())
 
