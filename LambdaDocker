@@ -32,7 +32,7 @@ COPY environment.yml environment.yml
 RUN conda env update --name minerl -f environment.yml --prune
 
 # lambdalabs uses cu11.6
-RUN pip uninstall torch && pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
+RUN yes | pip uninstall torch && pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu116
 
 # RUN pip install -e /home/aicrowd/external_libs/vpt/
 # RUN pip install -e /home/aicrowd/external_libs/fractal-zero/
