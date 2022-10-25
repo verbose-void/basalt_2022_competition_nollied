@@ -1,0 +1,6 @@
+models/*
+data/*
+logs/*
+__pycache__/*
+*.pyc
+*.egg-info

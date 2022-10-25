@@ -12,12 +12,7 @@ import torch
 
 # @ray.remote
 class XIRLTrainer:
-    def __init__(
-        self,
-        dataset_path: str,
-        model_path: str,
-        weights_path: str,
-    ):
+    def __init__(self, dataset_path: str, model_path: str, weights_path: str):
 
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
         self.agent = load_agent(model_path, weights_path)

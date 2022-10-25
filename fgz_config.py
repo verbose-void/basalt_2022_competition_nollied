@@ -39,6 +39,8 @@ class FGZConfig:
     # the enabled tasks.
     disable_fmc_detection: bool = False
 
+    verbose: bool = False
+
     num_walkers: int = 128
     unroll_steps: int = 8
 
@@ -54,6 +56,8 @@ class FGZConfig:
     @property
     def num_discriminator_classes(self):
         # plus 1 because FMC is a class label
+        if self.disable_fmc_detection:
+            return len(self.enabled_tasks)
         return len(self.enabled_tasks) + 1
 
     @property
@@ -79,10 +83,7 @@ class FGZConfig:
         }
 
     def asdict(self):
-        return {
-            **self.__dict__,
-            "enabled_tasks": self.enabled_tasks,
-        }
+        return {**self.__dict__, "enabled_tasks": self.enabled_tasks}
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1 @@
+docker run --gpus all --mount type=bind,source="$(pwd)/data",target=/home/aicrowd/data -it 1e3b9d6f1530
