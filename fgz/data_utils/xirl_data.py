@@ -21,7 +21,9 @@ class XIRLDataHandler:
 
         self.device = device
 
-        self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path)
+        # TODO: set to None!
+        max_num_trajectories = None
+        self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, max_num_trajectories=max_num_trajectories)
         # self.dynamics_function = dynamics_function
 
     def embed_trajectory(

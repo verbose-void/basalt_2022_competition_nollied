@@ -250,7 +250,7 @@ class XIRLTrainer:
             cross_entropy_labels = target_indices.long()
             ce_loss = F.cross_entropy(index_logits, cross_entropy_labels) / torch.log(torch.tensor(max_index))
             
-            use_mse = False
+            use_mse = True
             if use_mse:
                 effective_loss = normalized_mse
             else:

@@ -132,7 +132,7 @@ class ContiguousTrajectoryWindow:
 
 
 class ContiguousTrajectoryDataLoader:
-    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64):
+    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64, max_num_trajectories: int=None):
         self.dataset_path = dataset_path
         self.task_id = task_id
         self.minimum_steps = minimum_steps
@@ -144,7 +144,7 @@ class ContiguousTrajectoryDataLoader:
 
         # create ContiguousTrajectory objects for every mp4/json file pair.
         self.trajectories = []
-        for unique_id in unique_ids:
+        for unique_id in sorted(unique_ids):
             video_path = os.path.abspath(
                 os.path.join(self.dataset_path, unique_id + ".mp4")
             )
@@ -158,6 +158,9 @@ class ContiguousTrajectoryDataLoader:
 
             t = ContiguousTrajectory(video_path, json_path, unique_id, task_id)
             self.trajectories.append(t)
+
+            if max_num_trajectories and len(self.trajectories) >= max_num_trajectories:
+                break 
 
     def __len__(self):
         return len(self.trajectories)
