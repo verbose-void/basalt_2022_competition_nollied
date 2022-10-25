@@ -76,29 +76,21 @@ class XIRLTrainer:
         other_embeddings: List[torch.Tensor],
         return_similarity_vector: bool,
     ):
-        # TODO: optimize this!
-        soft_v = 0
-
-        # similarity_vector = torch.zeros(size=(len(other_embeddings),), dtype=float)
-
         expanded_frame_embedding = frame_embedding.expand(
             len(other_embeddings), -1
         )
 
-        # l2 distance
-        exp_norm = torch.exp(
-          -torch.norm(expanded_frame_embedding - other_embeddings, dim=1)
-        )
+        # l2 similarity
+        similarity = -torch.norm(expanded_frame_embedding - other_embeddings, dim=1)
+        similarity /= self.config.temperature
 
-        # cosine similarity
-        # exp_norm = torch.exp(F.cosine_similarity(expanded_frame_embedding, other_embeddings, dim=1))
-
-        alpha_k = exp_norm / exp_norm.sum()
+        alpha_k = torch.softmax(similarity, dim=0)
 
         if return_similarity_vector:
             return alpha_k
 
-        return torch.matmul(alpha_k, other_embeddings)
+        weighted_embeddings = alpha_k.unsqueeze(-1) * other_embeddings
+        return torch.sum(weighted_embeddings, dim=0)
 
 
     def unroll(self):
