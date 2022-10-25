@@ -120,6 +120,7 @@ def main(
     force_cpu: bool,
     fmc_logit: bool, 
     batch_size: int, 
+    embed_batch_size: int,
     unroll_steps: int,
     train_steps: int, 
     tasks: List[int],
@@ -159,6 +160,7 @@ def main(
         num_frames_per_pair=num_frames_per_pair,
         force_cpu=force_cpu,
         data_workers=data_workers,
+        embed_batch_size=embed_batch_size,
     )
 
     print(f"Running with config: {config}")
@@ -213,6 +215,8 @@ if __name__ == "__main__":
     parser.add_argument("--data-workers", type=int, default=4)
 
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--embed-batch-size", type=int, default=64)
+
     parser.add_argument("--consistency-loss-coeff", type=float, default=0.0)
     parser.add_argument("--learning-rate", type=float, default=0.000001)
     parser.add_argument("--unroll-steps", type=int, default=4)

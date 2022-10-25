@@ -128,7 +128,7 @@ class XIRLTrainer:
     def embed_trajectory(self, t):
         embedded = torch.zeros(size=(len(t), 2048), device=self.device, dtype=float)
 
-        bs = self.config.batch_size
+        bs = self.config.embed_batch_size
 
         i = 0
         while i < len(t):

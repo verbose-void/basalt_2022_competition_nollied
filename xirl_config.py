@@ -47,7 +47,9 @@ class XIRLConfig:
     temperature: float = 0.1
     data_workers: int = 4
 
-    batch_size: int = 64
+    batch_size: int = 32
+    embed_batch_size: int = 64
+
     learning_rate: float = 0.00008
     consistency_loss_coeff: float = 0.0  # if 0, consistency loss is ignored.
 
