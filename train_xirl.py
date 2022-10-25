@@ -129,6 +129,7 @@ def main(
     learning_rate: float,
     consistency_loss_coeff: float,
     save_video_every: int,
+    data_workers: int,
     num_frames_per_pair: int,
 ):
     """
@@ -157,6 +158,7 @@ def main(
         consistency_loss_coeff=consistency_loss_coeff,
         num_frames_per_pair=num_frames_per_pair,
         force_cpu=force_cpu,
+        data_workers=data_workers,
     )
 
     print(f"Running with config: {config}")
@@ -207,6 +209,8 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("--num-frames-per-pair", type=int, default=256)
+
+    parser.add_argument("--data-workers", type=int, default=4)
 
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--consistency-loss-coeff", type=float, default=0.0)
