@@ -43,6 +43,8 @@ class XIRLConfig:
 
     num_frames_per_pair: int = 20
 
+    temperature: float = 0.1
+
     batch_size: int = 64
     learning_rate: float = 0.00008
     consistency_loss_coeff: float = 0.0  # if 0, consistency loss is ignored.
