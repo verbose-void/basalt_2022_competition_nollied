@@ -4,7 +4,7 @@ import ray
 from vpt.agent import MineRLAgent
 from fgz.architecture.dynamics_function import DynamicsFunction
 
-from fgz.data_utils.xirl_data import XIRLDataHandler
+from fgz.data_utils.xirl_data import MultiProcessXIRLDataHandler, XIRLDataHandler
 from vpt.run_agent import load_agent
 from xirl_config import XIRLConfig
 
@@ -16,12 +16,12 @@ import torch.nn.functional as F
 
 class XIRLModel(torch.nn.Module):
 
-    def __init__(self, config: XIRLConfig):
+    def __init__(self, config: XIRLConfig, device=None):
         super().__init__()
 
         self.config = config
 
-        agent = load_agent(config.model_path, config.weights_path)
+        agent = load_agent(config.model_path, config.weights_path, device=device)
 
         self.img_preprocess = agent.policy.net.img_preprocess
         self.img_process = agent.policy.net.img_process
@@ -43,20 +43,26 @@ class XIRLTrainer:
     def __init__(self, config: XIRLConfig):
         self.config = config
 
-        # TODO: config
-        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        if config.force_cpu:
+            self.device = torch.device("cpu")
+        else:
+            self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
         # data_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
         data_device = torch.device("cpu")
 
         assert len(self.config.enabled_tasks) == 1, "XIRL only supports single tasks currently."
         dataset_path = self.config.dataset_paths[0]
-        self.data_handler = XIRLDataHandler.remote(
-            dataset_path, device=data_device
+
+        # self.data_handler = XIRLDataHandler.remote(
+        #     dataset_path, device=data_device
+        # )
+        self.data_handler = MultiProcessXIRLDataHandler.remote(
+            dataset_path, device=data_device, num_workers=4,
         )
 
         print("Model is using device", self.device)
-        self.model = XIRLModel(self.config).to(self.device)
+        self.model = XIRLModel(self.config, self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)#, weight_decay=1e-5)
 
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
@@ -138,7 +144,7 @@ class XIRLTrainer:
         assert self.config.num_frames_per_pair % self.config.batch_size == 0
 
         print("ray.getting the asynchronously gathered trajectory pair...")
-        (self.t0, self.a0), (self.t1, self.a1) = ray.get(self.next_data)
+        (self.t0, self.a0), (self.t1, self.a1) = ray.get(ray.get(self.next_data))
 
         # self.t0.requires_grad = True
         # self.t1.requires_grad = True

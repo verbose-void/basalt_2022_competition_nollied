@@ -40,6 +40,7 @@ class XIRLConfig:
     disable_fmc_detection: bool = False
 
     verbose: bool = False
+    force_cpu: bool = False
 
     num_frames_per_pair: int = 20
 

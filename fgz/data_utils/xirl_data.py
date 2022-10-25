@@ -57,6 +57,7 @@ class XIRLDataHandler:
         # assert len(embeddings) == len(trajectory), f"Got {len(embeddings)}, {len(trajectory)}"
         embeddings = torch.stack(embeddings)
         embeddings.requires_grad = True
+        # print("finished loading")
         return embeddings, actions
 
     def sample_pair(self, max_frames: int = None):
@@ -73,26 +74,48 @@ class XIRLDataHandler:
         )
 
 
-# @ray.remote
-# class MultiProcessXIRLDataHandler:
-#     def __init__(
-#             self, dataset_path: str, device, num_workers: int=4,
-#     ):
-# 
-#         self.handlers = []
-#         for _ in range(num_workers):
-#             handler = XIRLDataHandler.remote(dataset_path, device)
-#             self.handlers.append(handler)
-# 
-#     def sample_pair(self):
-#         # should trigger all handlers to begin getting their pair samples
-# 
-#         self.all_pairs = []
-#         for handler in self.handlers:
-#             self.all_pairs.append(handler.sample_pair.remote())
-#         
-#         while True:
-#             ready_ids, _remaining_ids = ray.wait(self.all_pairs,timeout=0)
-# 
-#             if len(ready_ids) > 0:
-#                 return ready_ids[0]
+@ray.remote
+class MultiProcessXIRLDataHandler:
+    def __init__(
+            self, dataset_path: str, device, num_workers: int=4,
+    ):
+
+        self.num_workers = num_workers
+
+        self.handlers = []
+        self.tasks = []
+        for _ in range(num_workers):
+            handler = XIRLDataHandler.remote(dataset_path, device)
+            self.handlers.append(handler)
+
+            # kick-start sampling
+            self.tasks.append(handler.sample_pair.remote())
+
+    def sample_pair(self):
+        # should trigger all handlers to begin getting their pair samples
+
+        assert len(self.tasks) == len(self.handlers) == self.num_workers
+        
+        while True:
+            ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0.1)
+
+            if len(ready_ids) > 0:
+                print("num that were ready", len(ready_ids))
+
+                ready_index = self.tasks.index(ready_ids[0])
+                ready_id = self.tasks[ready_index]
+
+                # overwrite task with new one.
+                self.tasks[ready_index] = self.handlers[ready_index].sample_pair.remote()
+
+                # move the task and corresponding handler to the back of the line.
+                moving_id = self.tasks.pop(ready_index)
+                moving_handler = self.handlers.pop(ready_index)
+                self.tasks.append(moving_id)
+                self.handlers.append(moving_handler)
+
+                # return ray.get(ready_id)
+                return ready_id
+
+        raise ValueError("This shouldn't be possible...")
+

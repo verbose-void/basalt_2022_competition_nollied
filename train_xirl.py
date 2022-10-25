@@ -116,7 +116,8 @@ coloredlogs.install(logging.DEBUG)
 
 
 def main(
-    use_wandb: bool, 
+    use_wandb: bool,
+    force_cpu: bool,
     fmc_logit: bool, 
     batch_size: int, 
     unroll_steps: int,
@@ -155,6 +156,7 @@ def main(
         batch_size=batch_size,
         consistency_loss_coeff=consistency_loss_coeff,
         num_frames_per_pair=num_frames_per_pair,
+        force_cpu=force_cpu,
     )
 
     print(f"Running with config: {config}")
@@ -198,6 +200,10 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--use-wandb", action="store_true", help="Enables usage of weights and biases."
+    )
+
+    parser.add_argument(
+        "--force-cpu", action="store_true", help="Requires XIRL to use the CPU."
     )
 
     parser.add_argument("--num-frames-per-pair", type=int, default=256)
