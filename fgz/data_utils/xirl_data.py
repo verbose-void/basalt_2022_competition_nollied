@@ -1,3 +1,4 @@
+from logging import warn
 from vpt.agent import MineRLAgent
 from vpt.run_agent import load_agent
 
@@ -70,10 +71,13 @@ class XIRLDataHandler:
             # try again if they're the same.
             return self.sample_pair()
 
-        return (
-            self.embed_trajectory(t0, max_frames=max_frames),
-            self.embed_trajectory(t1, max_frames=max_frames),
-        )
+        try:
+            emb0 = self.embed_trajectory(t0, max_frames=max_frames)
+            emb1 = self.embed_trajectory(t1, max_frames=max_frames)
+            return emb0, emb1
+        except:
+            warn("Failed to embed trajectories. Trying to sample again...")
+            return self.sample_pair()
 
 
 @ray.remote
