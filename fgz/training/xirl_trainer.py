@@ -74,7 +74,6 @@ class XIRLTrainer:
     def soft_nearest_neighbor(
         self, frame_embedding: torch.Tensor,
         other_embeddings: List[torch.Tensor],
-        return_similarity_vector: bool,
     ):
         expanded_frame_embedding = frame_embedding.expand(
             len(other_embeddings), -1
@@ -86,11 +85,7 @@ class XIRLTrainer:
 
         alpha_k = torch.softmax(similarity, dim=0)
 
-        if return_similarity_vector:
-            return alpha_k
-
-        weighted_embeddings = alpha_k.unsqueeze(-1) * other_embeddings
-        return torch.sum(weighted_embeddings, dim=0)
+        return alpha_k
 
 
     def unroll(self):
@@ -178,6 +173,7 @@ class XIRLTrainer:
             # total_loss = 0
 
             index_preds = []
+            index_logits = []
 
             chosen_indices = torch.randint(
                 low=0, high=max_index, size=(self.config.batch_size,)
@@ -202,11 +198,13 @@ class XIRLTrainer:
                 self.ui = embeddings[i]
 
                 # calculate cycle MSE loss
-                v_squiggly = self.soft_nearest_neighbor(
-                    self.ui, self.embedded_t1, return_similarity_vector=False
+                alpha_k = self.soft_nearest_neighbor(
+                    self.ui, self.embedded_t1
                 )
+                v_squiggly = torch.sum(alpha_k.unsqueeze(-1) * self.embedded_t1, dim=0)
+
                 beta = self.soft_nearest_neighbor(
-                    v_squiggly, self.embedded_t0, return_similarity_vector=True
+                    v_squiggly, self.embedded_t0
                 )
 
                 frame_mult = torch.arange(
@@ -215,6 +213,8 @@ class XIRLTrainer:
                 mu = torch.matmul(frame_mult, beta) # / len(beta)
 
                 index_preds.append(mu)
+                index_logits.append(beta)
+
                 # index_targets.append(self.chosen_frame_index)
 
                 # print(mu, self.chosen_frame_index)
@@ -236,16 +236,29 @@ class XIRLTrainer:
             index_preds = torch.stack(index_preds)
 
             unnormalized_mse = F.mse_loss(index_preds, target_indices)
-            tcc_loss = F.mse_loss(index_preds / max_index, target_indices / max_index)
+            normalized_mse = F.mse_loss(index_preds / max_index, target_indices / max_index)
+
+            index_logits = torch.stack(index_logits)
+
+            # cross_entropy_labels = F.one_hot(chosen_indices.to(self.device), num_classes=max_index, dtype=float)
+            cross_entropy_labels = target_indices.long()
+            ce_loss = F.cross_entropy(index_logits, cross_entropy_labels) / torch.log(torch.tensor(max_index))
+            
+            use_mse = False
+            if use_mse:
+                effective_loss = normalized_mse
+            else:
+                effective_loss = ce_loss
 
             stats = {
-                "tcc_loss": tcc_loss,
-                "data_bytes": nbytes,
-                "unnormalized_mse": unnormalized_mse,
-                "video_length": max_index,
+                "loss": effective_loss.item(),
+                "metrics/video_length": max_index,
+                "metrics/cross_entropy": ce_loss.item(),
+                "metrics/normalized_mse": normalized_mse.item(),
+                "metrics/unnormalized_mse": unnormalized_mse.item(),
+                "metrics/data_bytes": nbytes,
             }
 
-            # tcc_loss = total_loss / self.config.batch_size
             if self.config.use_wandb:
                 wandb.log(stats)
 
@@ -253,7 +266,7 @@ class XIRLTrainer:
                 print("---------------")
                 print(stats)
 
-            tcc_loss.backward()
+            effective_loss.backward()
             self.optimizer.step()
 
     def get_nbytes_stored(self):
