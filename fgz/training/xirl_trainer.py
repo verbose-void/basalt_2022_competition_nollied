@@ -57,7 +57,7 @@ class XIRLTrainer:
 
         print("Model is using device", self.device)
         self.model = XIRLModel(self.config).to(self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)#, weight_decay=1e-5)
 
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
         # self.agent = load_agent(model_path, weights_path)
@@ -175,15 +175,17 @@ class XIRLTrainer:
         for _ in range(num_batches):
             self.optimizer.zero_grad()
 
-            total_loss = 0
+            # total_loss = 0
 
             index_preds = []
-            index_targets = []
 
             chosen_indices = torch.randint(
                 low=0, high=max_index, size=(self.config.batch_size,)
             )
             frames = self.t0[chosen_indices].to(self.device)
+            
+            target_indices = chosen_indices.float().to(self.device)
+
             embeddings = self.model.embed(frames)
 
             # TODO: vectorize better
@@ -196,7 +198,7 @@ class XIRLTrainer:
                 # # embed again *with gradient*
                 # self.ui = self.model.embed(self.t0[self.chosen_frame_index].to(self.device))
 
-                self.chosen_frame_index = chosen_indices[i]
+                # self.chosen_frame_index = chosen_indices[i]
                 self.ui = embeddings[i]
 
                 # calculate cycle MSE loss
@@ -212,40 +214,44 @@ class XIRLTrainer:
                 ).float()# / len(beta)
                 mu = torch.matmul(frame_mult, beta) # / len(beta)
 
-                index_preds.append(mu.item())
-                index_targets.append(self.chosen_frame_index)
+                index_preds.append(mu)
+                # index_targets.append(self.chosen_frame_index)
 
                 # print(mu, self.chosen_frame_index)
                 # print(mu / max_index, self.chosen_frame_index / max_index)
 
                 # divide both by total num frames to make indices in more reasonable range
                 # mu /= total_frames
-                t = self.chosen_frame_index# / len(beta)
+                # t = self.chosen_frame_index# / len(beta)
                 # print(mu, t, len(beta))
 
-                cycle_loss = (1 + ((mu - t) / max_index)) ** 2
+                # cycle_loss = (1 + ((mu - t) / max_index)) ** 2
                 # self_consistency_loss = self.unroll()
 
                 # print(cycle_loss, total_loss)
 
                 # print(cycle_loss.item(), self_consistency_loss.item())
-                total_loss += cycle_loss
+                # total_loss += cycle_loss
 
-            unnormalized_mse = torch.sum((torch.tensor(index_preds) - torch.tensor(index_targets)) ** 2) / len(index_preds)
+            index_preds = torch.stack(index_preds)
 
-            tcc_loss = total_loss / self.config.batch_size
+            unnormalized_mse = F.mse_loss(index_preds, target_indices)
+            tcc_loss = F.mse_loss(index_preds / max_index, target_indices / max_index)
+
+            stats = {
+                "tcc_loss": tcc_loss,
+                "data_bytes": nbytes,
+                "unnormalized_mse": unnormalized_mse,
+                "video_length": max_index,
+            }
+
+            # tcc_loss = total_loss / self.config.batch_size
             if self.config.use_wandb:
-                wandb.log({
-                    "tcc_loss": tcc_loss,
-                    "data_bytes": nbytes,
-                    "unnormalized_mse": unnormalized_mse,
-                })
+                wandb.log(stats)
 
             if self.config.verbose:
                 print("---------------")
-                print("avg loss", tcc_loss.item())
-                print("data bytes", nbytes)
-                print("un-normalized MSE", unnormalized_mse)
+                print(stats)
 
             tcc_loss.backward()
             self.optimizer.step()
