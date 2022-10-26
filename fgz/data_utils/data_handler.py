@@ -234,7 +234,7 @@ class ContiguousTrajectoryDataLoader:
                 chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix, task_id=task_id)
                 self.trajectories.append(chunked_traj)
             except ValueError:
-                warn(f"Missing video/json path! Skipping...")
+                warn(f"Missing video/json path! Skipping... {trajectory_prefix} {sorted_date_times}")
                 continue
 
         # create ContiguousTrajectory objects for every mp4/json file pair.
