@@ -213,7 +213,12 @@ class ContiguousTrajectoryDataLoader:
         # get all chunked/unchunked trajectories as a dict of lists
         full_trajectory_ids = defaultdict(list)
         for clip_uid in unique_ids:
-            player_uid, game_uid, date, time = clip_uid.split("-")
+
+            # player_uid, game_uid, date, time = clip_uid.split("-")  # doesn't work for "cheeky-cornflower" stuff
+            splitted = clip_uid.split("-")
+            game_uid, date, time = splitted[-3:]
+            player_uid = splitted[:-3]
+
             trajectory_prefix = os.path.join(self.dataset_path, f"{player_uid}-{game_uid}")
             full_trajectory_ids[trajectory_prefix].append((date, time))
 
