@@ -120,6 +120,9 @@ class MultiProcessXIRLDataHandler:
 
         self.num_workers = num_workers
 
+        self.max_buffer_length = num_workers
+        self.buffer = []
+
         self.handlers = []
         self.tasks = []
         for _ in range(num_workers):
@@ -133,15 +136,23 @@ class MultiProcessXIRLDataHandler:
         # should trigger all handlers to begin getting their pair samples
 
         assert len(self.tasks) == len(self.handlers) == self.num_workers
+
+        # if len(self.ready_samples) > 0:
+        #     return self.ready_samples.pop(0)
         
         while True:
+            if len(self.buffer) >= self.max_buffer_length:
+                break
+
             ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0.1)
 
-            if len(ready_ids) > 0:
-                print("num that were ready", len(ready_ids))
+            for ready_index, ready_id in enumerate(ready_ids):
+                # self.ready_samples.append(ready_id)
 
-                ready_index = self.tasks.index(ready_ids[0])
-                ready_id = self.tasks[ready_index]
+            # if len(ready_ids) > 0:
+                # print("num that were ready", len(ready_ids))
+                # ready_index = self.tasks.index(ready_ids[0])
+                # ready_id = self.tasks[ready_index]
 
                 # overwrite task with new one.
                 self.tasks[ready_index] = self.handlers[ready_index].sample_pair.remote()
@@ -153,7 +164,12 @@ class MultiProcessXIRLDataHandler:
                 self.handlers.append(moving_handler)
 
                 # return ray.get(ready_id)
-                return ready_id
+                # return ready_id
+                self.buffer.append(ready_id)
 
-        raise ValueError("This shouldn't be possible...")
+            if len(self.buffer) > 0:
+                break
+
+        print("Data buffer length:", len(self.buffer))
+        return self.buffer.pop(0)
 
