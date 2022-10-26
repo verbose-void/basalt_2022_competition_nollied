@@ -63,7 +63,7 @@ class XIRLTrainer:
 
         print("Model is using device", self.device)
         self.model = XIRLModel(self.config, self.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate)#, weight_decay=1e-5)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5, betas=(0.99, 0.999))
 
         # NOTE: we can't use the same agent without more complicated thread-safeness code.
         # self.agent = load_agent(model_path, weights_path)
