@@ -6,7 +6,7 @@ from warnings import warn
 import minerl
 from typing import List, Sequence, Tuple
 
-from fgz.data_utils.data_loader import trajectory_generator
+from fgz.data_utils.data_loader import get_json_length_without_null_actions, trajectory_generator
 import torch
 
 from vpt.agent import MineRLAgent
@@ -26,8 +26,10 @@ class ContiguousTrajectory:
         self.task_id = task_id
 
     def __len__(self):
-        with open(self.json_path) as json_file:
-            return len(json_file.readlines())
+        # with open(self.json_path) as json_file:
+        #     return len(json_file.readlines())
+
+        return get_json_length_without_null_actions(self.json_path)
 
     def __str__(self) -> str:
         return f"T({self.uid})"

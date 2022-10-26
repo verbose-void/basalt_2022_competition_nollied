@@ -132,12 +132,15 @@ def main(
     save_video_every: int,
     data_workers: int,
     num_frames_per_pair: int,
+    num_frames_per_trajectory_to_load: int,
 ):
     """
     This function will be called for training phase.
     This should produce and save same files you upload during your submission.
     All trained models should be placed under "train" directory!
     """
+
+    assert num_frames_per_pair <= num_frames_per_trajectory_to_load
 
     # enabled_tasks = [2]  # cave only
     # enabled_tasks = [2, 3]  # cave and waterfall
@@ -158,6 +161,7 @@ def main(
         batch_size=batch_size,
         consistency_loss_coeff=consistency_loss_coeff,
         num_frames_per_pair=num_frames_per_pair,
+        num_frames_per_trajectory_to_load=num_frames_per_trajectory_to_load,
         force_cpu=force_cpu,
         data_workers=data_workers,
         embed_batch_size=embed_batch_size,
@@ -210,7 +214,8 @@ if __name__ == "__main__":
         "--force-cpu", action="store_true", help="Requires XIRL to use the CPU."
     )
 
-    parser.add_argument("--num-frames-per-pair", type=int, default=256)
+    parser.add_argument("--num-frames-per-pair", type=int, default=128)
+    parser.add_argument("--num-frames-per-trajectory-to-load", type=int, default=128)
 
     parser.add_argument("--data-workers", type=int, default=4)
 

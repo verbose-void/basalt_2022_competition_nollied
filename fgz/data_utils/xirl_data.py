@@ -10,16 +10,18 @@ from fgz.data_utils.data_handler import (
     ContiguousTrajectory,
     ContiguousTrajectoryDataLoader,
 )
+from xirl_config import XIRLConfig
 
 
 @ray.remote
 class XIRLDataHandler:
     def __init__(
-            self, dataset_path: str, device, # dynamics_function: DynamicsFunction
+            self, config: XIRLConfig, dataset_path: str, device, # dynamics_function: DynamicsFunction
     ):
         # self.agent = agent
         # self.agent = load_agent(model_path, weights_path, device=device)  # TODO: should we use GPU or force CPU?
 
+        self.config = config
         self.device = device
 
         # TODO: set to None!
@@ -33,11 +35,27 @@ class XIRLDataHandler:
         # reset hidden state.
         # self.agent.reset()
 
-        embeddings = []
+        frames = []
         actions = []
 
         with torch.no_grad():
+
+            # NOTE: some frames may get corrupt during the loading process, 
+            # if that occurs not all frames will be used probably. it may not
+            # have a huge impact on training, but it's definitely good to be
+            # aware of.
+
+            frames_to_use = torch.round(torch.linspace(start=0, end=len(trajectory), steps=self.config.num_frames_per_trajectory_to_load)).int().tolist()
+
+            c = 0
+
+            last_frame = None
             for i, (frame, action) in enumerate(trajectory):
+
+                # NOTE: this is a hack -- it would be faster to not load these frames from the disk at all.
+                if i not in frames_to_use:
+                    continue
+
                 # obs = {"pov": frame}
 
                 # embedding = self.agent.forward_observation(
@@ -50,18 +68,30 @@ class XIRLDataHandler:
                 # )
                 # embedding = embedding.flatten()
 
-                embedding = torch.tensor(frame, device=self.device)
-                embeddings.append(embedding.float())
+                frame_tensor = torch.tensor(frame, device=self.device)
+                frames.append(frame_tensor.float())
                 actions.append(action)
+
+                c += 1
+
+                last_frame = frame_tensor
 
                 if max_frames is not None and i >= max_frames:
                     break
 
+            # print(frames_to_use)
+            # print(len(frames_to_use))
+            assert len(frames) <= len(frames_to_use)
+
+            # ensure we always have the last frame in the sequence.
+            if last_frame is not None and c < len(frames_to_use):
+                frames.append(last_frame)
+
         # assert len(embeddings) == len(trajectory), f"Got {len(embeddings)}, {len(trajectory)}"
-        embeddings = torch.stack(embeddings)
-        embeddings.requires_grad = True
+        frames = torch.stack(frames)
+        frames.requires_grad = True
         # print("finished loading")
-        return embeddings, actions
+        return frames, actions
 
     def sample_pair(self, max_frames: int = None):
         t0 = self.trajectory_loader.sample()
@@ -83,7 +113,7 @@ class XIRLDataHandler:
 @ray.remote
 class MultiProcessXIRLDataHandler:
     def __init__(
-            self, dataset_path: str, device, num_workers: int=4,
+            self,  config: XIRLConfig, dataset_path: str, device, num_workers: int=4,
     ):
 
         self.num_workers = num_workers
@@ -91,7 +121,7 @@ class MultiProcessXIRLDataHandler:
         self.handlers = []
         self.tasks = []
         for _ in range(num_workers):
-            handler = XIRLDataHandler.remote(dataset_path, device)
+            handler = XIRLDataHandler.remote(config, dataset_path, device)
             self.handlers.append(handler)
 
             # kick-start sampling

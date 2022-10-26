@@ -58,7 +58,7 @@ class XIRLTrainer:
         #     dataset_path, device=data_device
         # )
         self.data_handler = MultiProcessXIRLDataHandler.remote(
-            dataset_path, device=data_device, num_workers=self.config.data_workers,
+            config, dataset_path, device=data_device, num_workers=self.config.data_workers,
         )
 
         print("Model is using device", self.device)

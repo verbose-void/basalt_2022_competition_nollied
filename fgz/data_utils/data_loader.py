@@ -158,6 +158,16 @@ def get_json_data(json_path: str):
         json_data = json.loads(json_data)
     return json_data
 
+def get_json_length_without_null_actions(json_path: str):
+    json_data = get_json_data(json_path)
+
+    c = 0
+    for step_data in json_data:
+        action, is_null_action = json_action_to_env_action(step_data)
+        if not is_null_action:
+            c += 1
+    return c
+
 
 def trajectory_generator(video_path, json_path, start_frame: int = None):
     cursor_image = cv2.imread(CURSOR_FILE, cv2.IMREAD_UNCHANGED)

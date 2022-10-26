@@ -42,7 +42,8 @@ class XIRLConfig:
     verbose: bool = False
     force_cpu: bool = False
 
-    num_frames_per_pair: int = 20
+    num_frames_per_pair: int = 128
+    num_frames_per_trajectory_to_load: int = 128
 
     temperature: float = 0.1
     data_workers: int = 4
