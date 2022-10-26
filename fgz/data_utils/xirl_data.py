@@ -144,7 +144,7 @@ class MultiProcessXIRLDataHandler:
             if len(self.buffer) >= self.max_buffer_length:
                 break
 
-            ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0.1)
+            ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0)
 
             for ready_index, ready_id in enumerate(ready_ids):
                 # self.ready_samples.append(ready_id)
