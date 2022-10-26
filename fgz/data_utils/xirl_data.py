@@ -158,10 +158,10 @@ class MultiProcessXIRLDataHandler:
                 self.tasks[ready_index] = self.handlers[ready_index].sample_pair.remote()
 
                 # move the task and corresponding handler to the back of the line.
-                moving_id = self.tasks.pop(ready_index)
-                moving_handler = self.handlers.pop(ready_index)
-                self.tasks.append(moving_id)
-                self.handlers.append(moving_handler)
+                # moving_id = self.tasks.pop(ready_index)
+                # moving_handler = self.handlers.pop(ready_index)
+                # self.tasks.append(moving_id)
+                # self.handlers.append(moving_handler)
 
                 # return ray.get(ready_id)
                 # return ready_id
