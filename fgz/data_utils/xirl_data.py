@@ -45,12 +45,17 @@ class XIRLDataHandler:
             # have a huge impact on training, but it's definitely good to be
             # aware of.
 
-            frames_to_use = torch.round(torch.linspace(start=0, end=len(trajectory), steps=self.config.num_frames_per_trajectory_to_load)).int().tolist()
+            # we can't load more frames than are available
+            nframes_to_use = min(self.config.num_frames_per_trajectory_to_load, len(trajectory))
+
+            frames_to_use = torch.round(torch.linspace(start=0, end=len(trajectory), steps=nframes_to_use)).int().tolist()
 
             c = 0
 
             last_frame = None
             for i, (frame, action) in enumerate(trajectory):
+                if max_frames is not None and i >= max_frames:
+                    break
 
                 # NOTE: this is a hack -- it would be faster to not load these frames from the disk at all.
                 if i not in frames_to_use:
@@ -75,9 +80,6 @@ class XIRLDataHandler:
                 c += 1
 
                 last_frame = frame_tensor
-
-                if max_frames is not None and i >= max_frames:
-                    break
 
             # print(frames_to_use)
             # print(len(frames_to_use))
