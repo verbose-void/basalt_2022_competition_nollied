@@ -165,7 +165,7 @@ def main(
 
     print(f"Running with config: {config}")
     if config.use_wandb:
-        wandb.init(project="xirl", config=config.asdict())
+        wandb.init(project=f"xirl-task-{tasks[0]}", config=config.asdict())
 
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     # agent = get_agent(config)
