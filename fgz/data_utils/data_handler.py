@@ -9,9 +9,10 @@ from typing import List, Sequence, Tuple
 from fgz.data_utils.data_loader import get_json_length_without_null_actions, trajectory_generator
 import torch
 
-from vpt.agent import MineRLAgent
+from vpt.agent import AGENT_RESOLUTION, MineRLAgent, resize_image
 
 import numpy as np
+import cv2
 
 
 class ContiguousTrajectory:
@@ -60,7 +61,7 @@ class ChunkedContiguousTrajectory:
 
         assert len(self.video_paths) == len(self.json_paths)
 
-        self.contiguous_clips = []
+        self.contiguous_clips: Sequence[ContiguousTrajectory] = []
         for video_path, json_path in zip(self.video_paths, self.json_paths):
 
             if not os.path.exists(video_path) or not os.path.exists(json_path):
@@ -109,6 +110,19 @@ class ChunkedContiguousTrajectory:
             self._clip_iter = iter(self.contiguous_clips[self._current_clip])
 
             return self.__next__()
+
+    def get_last_frame(self):
+        clip = self.contiguous_clips[-1]
+        video = cv2.VideoCapture(clip.video_path)
+        last_frame_num = video.get(cv2.CAP_PROP_FRAME_COUNT) - 1
+        video.set(1, last_frame_num)
+        ret, frame = video.read()
+
+        cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
+        frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
+        frame = resize_image(frame, AGENT_RESOLUTION)
+
+        return frame
 
 class ContiguousTrajectoryWindow:
     def __init__(
