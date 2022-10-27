@@ -1,11 +1,13 @@
 from datetime import datetime
 import os
+from warnings import warn
 import minerl
 import gym
 import numpy as np
 import torch
 import torch.nn.functional as F
 import wandb
+import cv2
 
 from tqdm import tqdm
 
@@ -46,7 +48,7 @@ class FGZTrainer:
         self.fmc = fmc
         self.config = config
 
-        self.dynamics_function = self.fmc.vec_env.dynamics_function.to(agent.device)
+        self.fmc.vec_env.dynamics_function = self.fmc.vec_env.dynamics_function.to(agent.device)
         self.dynamics_function_optimizer = dynamics_function_optimizer
 
         self.train_steps_taken = 0
@@ -55,6 +57,10 @@ class FGZTrainer:
             self.run_name = wandb.run.name
         else:
             self.run_name = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
+
+    @property
+    def dynamics_function(self):
+        return self.fmc.vec_env.dynamics_function
 
     @property
     def num_tasks(self):
@@ -70,7 +76,7 @@ class FGZTrainer:
         self.fmc.vec_env.set_all_states(root_embedding.squeeze())
         self.fmc.reset()
 
-        self.fmc.simulate(self.config.unroll_steps)
+        self.fmc.simulate(self.config.fmc_steps)
 
         self.tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
         observations, actions, _, confusions, infos = self.tree_sampler.get_batch()
@@ -81,7 +87,22 @@ class FGZTrainer:
         self.fmc_discrim_logits = infos
         self.fmc_confusions = torch.tensor(confusions[1:], requires_grad=False)
 
+        self.fmc_average_reward = self.fmc_confusions.mean()
+
         return self.fmc_discrim_logits
+
+    def _log_accuracies(self, logits, targets: torch.Tensor, task_targets: torch.Tensor=None):
+        if task_targets is None:
+            task_targets = targets
+
+        preds = logits.argmax(1)
+        self.expert_correct_logit_count += (preds == targets).sum()
+
+        if not self.config.disable_fmc_detection:
+            task_preds = logits[:, :-1].argmax(1)
+            self.expert_correct_task_count += (task_preds == task_targets).sum()
+
+        self.current_trajectory_processed_frame_count += targets.numel()
 
     def get_fmc_loss(self, full_window):
         fmc_root_embedding = full_window[0][1]
@@ -89,12 +110,21 @@ class FGZTrainer:
 
         discrim_logits = discrim_logits[1:]
         self.fmc_steps_taken = len(discrim_logits)
+    
+        if self.fmc_steps_taken <= 0:
+            warn("Uh oh... FMC steps was <= 0.")
+            return 0  # TODO: this should never happen.
 
         # TODO: explain
         discrim_logits = [logits.unsqueeze(0) for logits in discrim_logits]
         discrim_logits = torch.cat(discrim_logits)
+
+        device = discrim_logits.device
+
+        # TODO: should we make this a distribution where the target logit for the task
+        # is also slightly higher?
         fmc_discriminator_targets = (
-            torch.ones(self.fmc_steps_taken, dtype=torch.long) * self.config.fmc_logit
+            torch.ones(self.fmc_steps_taken, dtype=torch.long, device=device) * self.config.fmc_logit
         )
 
         # fmc_confusions = [c.unsqueeze(0) for c in fmc_confusions[1:]]
@@ -103,6 +133,16 @@ class FGZTrainer:
 
         # self.fmc_steps_taken = len(fmc_confusions)
         # return F.mse_loss(fmc_confusions, fmc_discriminator_targets)
+
+        # TODO: add the correct task accuracies in here as well.
+
+        task_targets = torch.tensor(
+            [self.current_trajectory_window.task_id] * self.fmc_steps_taken,
+            dtype=torch.long,
+            device=device,
+        )
+
+        self._log_accuracies(discrim_logits, fmc_discriminator_targets, task_targets)
 
         return F.cross_entropy(discrim_logits, fmc_discriminator_targets)
 
@@ -128,15 +168,12 @@ class FGZTrainer:
 
         # make sure we unroll to the length of FMC
         c = 0
-        for i in range(self.fmc_steps_taken):
+        for i in range(self.config.unroll_steps):
             _, _, action = full_window[i]
             embedding, logits = self.dynamics_function.forward_action(embedding, action)
             loss += F.cross_entropy(logits, target_logit)
 
-            preds = logits.argmax(1)
-            correct = preds == target_logit
-            self.expert_correct_frame_count += correct.sum()
-            self.expert_total_frame_count += 1
+            self._log_accuracies(logits, target_logit)
 
             # squared error (later it's averaged so MSE.)
             if i < len(full_window) - 1:
@@ -152,7 +189,7 @@ class FGZTrainer:
         # print("accuracy", percent)
         # print("expert accuracy:", self.expert_correct_frame_count / self.expert_total_frame_count)
 
-        return loss / self.fmc_steps_taken
+        return loss / self.config.unroll_steps
 
     def _get_tqdm_description(self) -> str:
         task_name = TASKS[self.current_trajectory_window.task_id]["name"]
@@ -165,7 +202,7 @@ class FGZTrainer:
         self, max_steps: int = None, use_tqdm: bool = False
     ):
         if self.config.disable_fmc_detection:
-            self.fmc_steps_taken = self.config.unroll_steps
+            self.fmc_steps_taken = 0
             self.fmc_confusions = np.zeros(1)
 
         # reset the hidden state of the agent, so we don't carry over any context from
@@ -188,12 +225,12 @@ class FGZTrainer:
         for step, full_window in enumerate(it):
             # TODO: maybe we can implement self-consistency loss like the EfficientZero paper?
 
-            expert_loss = self.get_expert_loss(full_window)
-
             if self.config.disable_fmc_detection:
                 fmc_loss = 0.0
             else:
                 fmc_loss = self.get_fmc_loss(full_window)
+
+            expert_loss = self.get_expert_loss(full_window)
 
             loss = expert_loss + fmc_loss
 
@@ -211,7 +248,9 @@ class FGZTrainer:
         # total_consistency_loss *= 0.001
 
         classification_loss = total_loss
-        total_loss += total_consistency_loss
+
+        # NOTE: this coefficient can be 0.
+        total_loss += total_consistency_loss * self.config.consistency_loss_coeff
 
         return total_loss, total_consistency_loss, classification_loss
 
@@ -232,15 +271,22 @@ class FGZTrainer:
         self.dynamics_function_optimizer.zero_grad()
 
         # for accuracy calc
-        self.expert_correct_frame_count = 0
-        self.expert_total_frame_count = 0
+        self.expert_correct_logit_count = 0
+        self.expert_correct_task_count = 0
+        self.current_trajectory_processed_frame_count = 0
 
         task_ids = []
 
         total_loss = 0.0
         total_consistency_loss = 0.0
         total_classification_loss = 0.0
-        for _ in range(batch_size):
+
+        if self.config.disable_fmc_detection and batch_size % 2 != 0:
+            raise ValueError("Batch size should be an even number when enabling FMC detection.")
+            
+        num_batch_steps = batch_size if self.config.disable_fmc_detection else batch_size // 2
+
+        for _ in range(num_batch_steps):
             (
                 loss,
                 consistency_loss,
@@ -257,8 +303,8 @@ class FGZTrainer:
         total_consistency_loss /= batch_size
         total_classification_loss /= batch_size
 
-        expert_classification_accuracy = (
-            self.expert_correct_frame_count / self.expert_total_frame_count
+        logit_accuracy = (
+            self.expert_correct_logit_count / self.current_trajectory_processed_frame_count
         )
 
         include_consistency_loss = False
@@ -269,6 +315,11 @@ class FGZTrainer:
         self.dynamics_function_optimizer.step()
 
         if self.config.use_wandb and wandb.run:
+            task_accuracy = self.expert_correct_task_count / self.current_trajectory_processed_frame_count
+            
+            if self.config.disable_fmc_detection:
+                self.fmc_average_reward = 0
+            
             wandb.log(
                 {
                     # "train/fmc_loss": fmc_loss,
@@ -276,9 +327,11 @@ class FGZTrainer:
                     "train/total_loss": total_loss,
                     "train/expert_consistency_loss": total_consistency_loss,
                     "train/classification_loss": total_classification_loss,
-                    "train/task_accuracy": expert_classification_accuracy,
-                    "metrics/expert_total_frame_count": self.expert_total_frame_count,
-                    # "fmc/steps_taken": self.fmc_steps_taken,
+                    "train/accuracy": logit_accuracy,
+                    "train/no_fmc_task_accuracy": task_accuracy,
+                    "metrics/frame_count": self.current_trajectory_processed_frame_count,
+                    "fmc/steps_taken": self.fmc_steps_taken,
+                    "fmc/average_reward": self.fmc_average_reward,
                     # "fmc/average_confusion_reward": self.fmc_confusions.mean(),
                 }
             )
@@ -294,7 +347,7 @@ class FGZTrainer:
                 "consistency loss:",
                 total_consistency_loss.item(),
             )
-            print("accuracy:", expert_classification_accuracy)
+            print("accuracy:", logit_accuracy)
 
         # unroller = ExpertDatasetUnroller(self.agent, window_size=self.unroll_steps + 1)
         # for expert_sequence in unroller:
@@ -308,13 +361,15 @@ class FGZTrainer:
 
         self.train_steps_taken += 1
 
-        return expert_classification_accuracy
+        # return logit_accuracy
+        return -total_loss
 
     @torch.no_grad()
     def evaluate(
         self,
         minerl_environment_id: str,
         render: bool = False,
+        save_video: bool = False,
         max_steps: int = None,
         force_no_escape: bool = False,
     ):
@@ -330,15 +385,20 @@ class FGZTrainer:
         self.fmc.vec_env.set_target_logit(target_logit)
 
         # TODO: manage FMC device more carefully.
-        self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
+        # self.fmc.vec_env.dynamics_function.to(torch.device("cpu"))
+
+        video_path = None
+        if save_video:
+            video_path = f"./train/checkpoints/{self.run_name}/eval_{self.train_steps_taken}_{minerl_environment_id}.mp4"
+            video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, (640, 360))
 
         step = 0
         while True:
             embedding = self.agent.forward_observation(obs, return_embedding=True)
-            self.fmc.vec_env.set_all_states(embedding.squeeze().cpu())
+            self.fmc.vec_env.set_all_states(embedding.squeeze())
             self.fmc.reset()
             # self.fmc.simulate(self.config.unroll_steps)
-            self.fmc.simulate(16)
+            self.fmc.simulate(self.config.fmc_steps)
 
             # get best FMC action
             path = self.fmc.tree.best_path
@@ -359,6 +419,9 @@ class FGZTrainer:
             if render:
                 env.render()
 
+            if save_video:
+                video_recorder.write(obs["pov"][..., ::-1])
+
             if max_steps is not None:
                 if step >= max_steps:
                     break
@@ -369,6 +432,9 @@ class FGZTrainer:
             step += 1
 
         env.close()
+        
+        if save_video:
+            return video_path
 
     def save(self, directory: str = "./train", filename: str = None):
         current_trajectory_window = self.current_trajectory_window
@@ -379,6 +445,7 @@ class FGZTrainer:
         self.current_trajectory_window = None
         self.agent = None
         self.data_handler.agent = None
+        self.fmc.vec_env.agent = None
 
         if filename is None:
             folder = os.path.join(directory, f"{self.run_name}")
@@ -391,16 +458,23 @@ class FGZTrainer:
         self.agent = agent
         self.data_handler = data_handler
         self.data_handler.agent = agent
+        self.fmc.vec_env.agent = agent
+
+        return filename
 
     @staticmethod
-    def load(path: str):
-        trainer: FGZTrainer = torch.load(path)
+    def load(path: str, device=None):
+        trainer: FGZTrainer = torch.load(path, map_location=device)
 
         config = trainer.config
         print(f"Loading with config: {config}")
 
-        agent = get_agent(config)
+        agent = get_agent(config, device=device)
+
+        # if device is not None:
+            # trainer.fmc.vec_env.dynamics_function = trainer.fmc.vec_env.dynamics_function.to(device)
 
         trainer.agent = agent
         trainer.data_handler.agent = agent
+        trainer.fmc.vec_env.agent = agent
         return trainer

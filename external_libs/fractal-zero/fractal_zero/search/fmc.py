@@ -1,6 +1,7 @@
 from copy import copy, deepcopy
 from typing import Callable, List
 import torch
+import torch.nn.functional as F
 import numpy as np
 
 from tqdm import tqdm
@@ -10,7 +11,8 @@ from fractal_zero.utils import cloning_primitive
 from fractal_zero.vectorized_environment import VectorizedEnvironment
 
 
-def _l2_distance(vec0, vec1):
+def _dist(vec0, vec1):
+# def _l2_distance(vec0, vec1):
     if vec0.dim() > 2:
         vec0 = vec0.flatten(start_dim=1)
     elif vec0.dim() == 1:
@@ -19,7 +21,8 @@ def _l2_distance(vec0, vec1):
         vec1 = vec1.flatten(start_dim=1)
     elif vec1.dim() == 1:
         vec1 = vec1.unsqueeze(-1)
-    return torch.norm(vec0 - vec1, dim=-1)
+    # return torch.norm(vec0 - vec1, dim=-1)  # l2
+    return 1 - F.cosine_similarity(vec0, vec1, dim=-1)
 
 
 def _relativize_vector(vector: torch.Tensor):
@@ -51,7 +54,8 @@ class FMC:
         balance: float = 1.0,
         disable_cloning: bool = False,
         use_average_rewards: bool = False,
-        similarity_function: Callable = _l2_distance,
+        similarity_function: Callable = _dist,
+        # similarity_function: Callable = _l2_distance,
         freeze_best: bool = True,
         track_tree: bool = True,
         prune_tree: bool = True,
@@ -128,7 +132,7 @@ class FMC:
             self.dones,
             self.infos,
         ) = self.vec_env.batch_step(self.actions, freeze_steps)
-        self.scores += self.rewards
+        self.scores += self.rewards.cpu()
         self.average_rewards = self.scores / self.tree.get_depths()
 
         if self.tree:
@@ -166,7 +170,7 @@ class FMC:
         self._set_valid_clone_partners()
         self.similarities = self.similarity_function(
             self.states, self.states[self.clone_partners]
-        )
+        ).cpu()
 
         rel_sim = _relativize_vector(self.similarities)
 

@@ -10,6 +10,11 @@ args = parser.parse_args().__dict__
 
 trainer = FGZTrainer.load(**args)
 
+# env_id = "MineRLBasaltMakeWaterfall-v0"
+env_id = "MineRLBasaltFindCave-v0"
+render = False
+save_video = True
+
 trainer.evaluate(
-    "MineRLBasaltMakeWaterfall-v0", render=True, max_steps=256, force_no_escape=True
+    env_id, render=render, max_steps=32, force_no_escape=True, save_video=True,
 )

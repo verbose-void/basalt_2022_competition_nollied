@@ -1,16 +1,18 @@
+from collections import defaultdict
 import os
 from glob import glob
 from warnings import warn
 
 import minerl
-from typing import List
+from typing import List, Sequence, Tuple
 
-from fgz.data_utils.data_loader import trajectory_generator
+from fgz.data_utils.data_loader import get_json_length_without_null_actions, trajectory_generator
 import torch
 
-from vpt.agent import MineRLAgent
+from vpt.agent import AGENT_RESOLUTION, MineRLAgent, resize_image
 
 import numpy as np
+import cv2
 
 
 class ContiguousTrajectory:
@@ -25,8 +27,10 @@ class ContiguousTrajectory:
         self.task_id = task_id
 
     def __len__(self):
-        with open(self.json_path) as json_file:
-            return len(json_file.readlines())
+        # with open(self.json_path) as json_file:
+        #     return len(json_file.readlines())
+
+        return get_json_length_without_null_actions(self.json_path)
 
     def __str__(self) -> str:
         return f"T({self.uid})"
@@ -39,6 +43,86 @@ class ContiguousTrajectory:
             self.video_path, self.json_path, start_frame=start_frame
         )
 
+
+class ChunkedContiguousTrajectory:
+
+    def __init__(self, trajectory_prefix: str, clip_date_times: Sequence[Tuple], uid: str, task_id: int = None):
+
+        self.video_paths = []
+        self.json_paths = []
+        for date, time in clip_date_times:
+            path_pref = f"{trajectory_prefix}-{date}-{time}"
+
+            self.video_paths.append(f"{path_pref}.mp4")
+            self.json_paths.append(f"{path_pref}.jsonl")
+
+        self.uid = uid
+        self.task_id = task_id
+
+        assert len(self.video_paths) == len(self.json_paths)
+
+        self.contiguous_clips: Sequence[ContiguousTrajectory] = []
+        for video_path, json_path in zip(self.video_paths, self.json_paths):
+
+            if not os.path.exists(video_path) or not os.path.exists(json_path):
+                raise ValueError
+
+            clip = ContiguousTrajectory(video_path, json_path, uid=uid, task_id=task_id)
+            self.contiguous_clips.append(clip)
+
+        # TODO: if any of them are corrupted or don't exist, raise an exception. this chunked clip object should not persist
+        
+        self.num_clips = len(self.contiguous_clips)
+
+    def __len__(self):
+        return sum([len(clip) for clip in self.contiguous_clips])
+
+    def __str__(self) -> str:
+        return f"CT({self.uid}, nclips={self.num_clips})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    def __iter__(self, start_frame: int = None):
+        if start_frame is not None:
+            raise NotImplementedError
+        else:
+            self._current_clip = 0
+
+        self._clip_iter = iter(self.contiguous_clips[self._current_clip])
+        
+        # return trajectory_generator(
+        #     self.video_path, self.json_path, start_frame=start_frame
+        # )
+        return self
+
+    def __next__(self):
+        """Chain together all of the contiguous clip iterators."""
+
+        try:
+            data = self._clip_iter.__next__()
+            return data
+        except StopIteration:
+            if self._current_clip >= self.num_clips - 1:
+                raise StopIteration
+
+            self._current_clip += 1
+            self._clip_iter = iter(self.contiguous_clips[self._current_clip])
+
+            return self.__next__()
+
+    def get_last_frame(self):
+        clip = self.contiguous_clips[-1]
+        video = cv2.VideoCapture(clip.video_path)
+        last_frame_num = video.get(cv2.CAP_PROP_FRAME_COUNT) - 1
+        video.set(1, last_frame_num)
+        ret, frame = video.read()
+
+        cv2.cvtColor(frame, code=cv2.COLOR_BGR2RGB, dst=frame)
+        frame = np.asarray(np.clip(frame, 0, 255), dtype=np.uint8)
+        frame = resize_image(frame, AGENT_RESOLUTION)
+
+        return frame
 
 class ContiguousTrajectoryWindow:
     def __init__(
@@ -132,7 +216,7 @@ class ContiguousTrajectoryWindow:
 
 
 class ContiguousTrajectoryDataLoader:
-    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64):
+    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64, max_num_trajectories: int=None):
         self.dataset_path = dataset_path
         self.task_id = task_id
         self.minimum_steps = minimum_steps
@@ -142,22 +226,53 @@ class ContiguousTrajectoryDataLoader:
         unique_ids = list(set([os.path.basename(x).split(".")[0] for x in unique_ids]))
         self.unique_ids = unique_ids
 
-        # create ContiguousTrajectory objects for every mp4/json file pair.
-        self.trajectories = []
-        for unique_id in unique_ids:
-            video_path = os.path.abspath(
-                os.path.join(self.dataset_path, unique_id + ".mp4")
-            )
-            json_path = os.path.abspath(
-                os.path.join(self.dataset_path, unique_id + ".jsonl")
-            )
+        # get all chunked/unchunked trajectories as a dict of lists
+        full_trajectory_ids = defaultdict(list)
+        for clip_uid in unique_ids:
 
-            if not os.path.exists(video_path) or not os.path.exists(json_path):
-                warn(f"Skipping {unique_id}...")
+            # player_uid, game_uid, date, time = clip_uid.split("-")  # doesn't work for "cheeky-cornflower" stuff
+            splitted = clip_uid.split("-")
+            game_uid, date, time = splitted[-3:]
+            player_uid = "-".join(splitted[:-3])
+
+            trajectory_prefix = os.path.join(self.dataset_path, f"{player_uid}-{game_uid}")
+            full_trajectory_ids[trajectory_prefix].append((date, time))
+
+        # sort and gather the trajectories into a single class
+        self.trajectories: Sequence[ChunkedContiguousTrajectory] = []
+        for trajectory_prefix in sorted(full_trajectory_ids.keys()):
+            date_times = full_trajectory_ids[trajectory_prefix]
+
+            sorted_date_times = list(sorted(date_times))
+            # print(trajectory_prefix, sorted_date_times)
+
+            try:
+                chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix, task_id=task_id)
+                self.trajectories.append(chunked_traj)
+            except ValueError:
+                warn(f"Missing video/json path! Skipping... {trajectory_prefix} {sorted_date_times}")
                 continue
 
-            t = ContiguousTrajectory(video_path, json_path, unique_id, task_id)
-            self.trajectories.append(t)
+        # create ContiguousTrajectory objects for every mp4/json file pair.
+        # self.trajectories = []
+        # for unique_id in sorted(unique_ids):
+        #     video_path = os.path.abspath(
+        #         os.path.join(self.dataset_path, unique_id + ".mp4")
+        #     )
+        #     json_path = os.path.abspath(
+        #         os.path.join(self.dataset_path, unique_id + ".jsonl")
+        #     )
+
+        #     if not os.path.exists(video_path) or not os.path.exists(json_path):
+        #         warn(f"Skipping {unique_id}...")
+        #         continue
+
+        #     t = ContiguousTrajectory(video_path, json_path, unique_id, task_id)
+        #     self.trajectories.append(t)
+
+        #     if max_num_trajectories and len(self.trajectories) >= max_num_trajectories:
+        #         break 
+
 
     def __len__(self):
         return len(self.trajectories)

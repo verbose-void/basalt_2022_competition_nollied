@@ -21,7 +21,7 @@ VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
 
 
 @dataclass
-class FGZConfig:
+class XIRLConfig:
     # model_filename: str = "foundation-model-1x.model"
     model_filename: str = "foundation-model-2x.model"
     # model_filename: str = "foundation-model-3x.model"
@@ -40,8 +40,17 @@ class FGZConfig:
     disable_fmc_detection: bool = False
 
     verbose: bool = False
+    force_cpu: bool = False
 
-    batch_size: int = 64
+    num_frames_per_pair: int = 128
+    num_frames_per_trajectory_to_load: int = 128
+
+    temperature: float = 0.1
+    data_workers: int = 4
+
+    batch_size: int = 32
+    embed_batch_size: int = 64
+
     learning_rate: float = 0.00008
     consistency_loss_coeff: float = 0.0  # if 0, consistency loss is ignored.
 
@@ -91,7 +100,3 @@ class FGZConfig:
     def asdict(self):
         return {**self.__dict__, "enabled_tasks": self.enabled_tasks}
 
-
-if __name__ == "__main__":
-    config = FGZConfig().asdict()
-    print(config)

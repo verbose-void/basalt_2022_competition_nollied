@@ -1,10 +1,12 @@
 .vscode
 logs
 
+*.swp
 data/*
 wandb/*
 */wandb/*
 *wandb/
+train/*
 
 *.DS_Store
 *checkpoint.pth

@@ -2,6 +2,7 @@ import minerl
 import gym
 
 from typing import Dict, List
+from vpt.agent import MineRLAgent
 
 from vpt.lib.actions import Buttons
 import torch
@@ -25,17 +26,23 @@ def vectorize_minerl_action(action: Dict, camera_scale: float = 180):
     # group movement keys
     button_vec = _vectorize_buttons(action)
     camera_vec = torch.tensor(action["camera"], dtype=float) / camera_scale
-    return button_vec.float(), camera_vec.float()
+    return button_vec.float(), camera_vec.squeeze().float()
 
 
-def vectorize_minerl_actions(actions: List[Dict], camera_scale: float = 180):
+def vectorize_minerl_actions(actions: List[Dict], camera_scale: float = 180, device=None):
     button_vecs = []
     camera_vecs = []
     for action in actions:
         bv, cv = vectorize_minerl_action(action, camera_scale=camera_scale)
         button_vecs.append(bv)
         camera_vecs.append(cv)
-    return torch.stack(button_vecs), torch.stack(camera_vecs)
+
+    button_vecs, camera_vecs = torch.stack(button_vecs), torch.stack(camera_vecs)
+
+    if device is not None:
+        return button_vecs.to(device), camera_vecs.to(device)
+
+    return button_vecs, camera_vecs
 
 
 class DynamicsFunction(torch.nn.Module):
@@ -92,7 +99,7 @@ class DynamicsFunction(torch.nn.Module):
         assert (
             state_embedding.dim() <= 2
             and state_embedding.shape[-1] == self.state_embedding_size
-        ), str(state_embedding.shape)
+        ), (str(state_embedding.shape), self.state_embedding_size)
 
         button_embedding = self.button_embedder.forward(buttons_vector)
         camera_embedding = self.camera_embedder.forward(camera_vector)
@@ -129,11 +136,15 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self,
         action_space: gym.Env,
         dynamics_function: DynamicsFunction,
+        agent: MineRLAgent,
         n: int = 1,
         apply_softmax_before_reward: bool = True,
+        use_agent_policy: bool = True,
     ):
         self.action_space = action_space
         self.dynamics_function = dynamics_function
+        self.agent = agent
+        self.use_agent_policy = use_agent_policy
         self.n = n
 
         # NOTE: this should be updated with each trajectory in the training script.
@@ -148,17 +159,21 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
 
     def set_all_states(self, state_embedding: torch.Tensor):
         assert state_embedding.dim() == 1, state_embedding.shape
-        self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size))
+        self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size), device=state_embedding.device)
         self.states[:] = state_embedding
 
+        # self.dynamics_function = self.dynamics_function.to(self.states.device)
+
     def batch_step(self, actions, freeze_mask):
+        freeze_mask = freeze_mask.to(self.states.device)
+
         assert len(actions) == self.n
         assert self.states.shape == (
             self.n,
             self.dynamics_function.state_embedding_size,
         )
 
-        button_vectors, camera_vectors = vectorize_minerl_actions(actions)
+        button_vectors, camera_vectors = vectorize_minerl_actions(actions, device=self.states.device)
         new_states, discrim_logits = self.dynamics_function.forward(
             self.states, button_vectors, camera_vectors
         )
@@ -201,5 +216,11 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         actions = []
         for _ in range(self.n):
             action_space = self.action_space
-            actions.append(action_space.sample())
+
+            if self.use_agent_policy:
+                action = self.agent.sample_action()
+            else:
+                action = action_space.sample()
+
+            actions.append(action)
         return actions

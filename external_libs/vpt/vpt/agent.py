@@ -146,6 +146,7 @@ class MineRLAgent:
     def reset(self):
         """Reset agent to initial state (i.e., reset hidden state)"""
         self.hidden_state = self.policy.initial_state(1)
+        self.last_pd = None
 
     def _env_obs_to_agent(self, minerl_obs):
         """
@@ -229,10 +230,22 @@ class MineRLAgent:
             self._dummy_first,
             return_embedding=return_embedding,
         )
+
+
         if return_embedding:
-            embedding, state_out = ret
+            embedding, state_out, pi_logits = ret
+            self.last_pd = pi_logits
             self.hidden_state = state_out  # TODO: should we do this?
             return embedding
 
         pd, v, state_out = ret
+        self.last_pd = pd
         return pd, v
+
+    def sample_action(self):
+        if self.last_pd is None:
+            raise ValueError("Must call forward_observation first.")
+
+        agent_action = self.policy.pi_head.sample(self.last_pd, deterministic=False)
+        minerl_action = self._agent_action_to_env(agent_action)
+        return minerl_action

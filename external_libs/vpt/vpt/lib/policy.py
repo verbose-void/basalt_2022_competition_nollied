@@ -285,11 +285,12 @@ class MinecraftAgentPolicy(nn.Module):
         (pi_h, v_h), state_out = self.net(
             obs, state_in, context={"first": first}, last_action=last_action
         )
+        
+        pi_logits = self.pi_head(pi_h, mask=mask)
 
         if return_embedding:
-            return pi_h, state_out
+            return pi_h, state_out, pi_logits
 
-        pi_logits = self.pi_head(pi_h, mask=mask)
         vpred = self.value_head(v_h)
 
         return (pi_logits, vpred, None), state_out
@@ -330,8 +331,8 @@ class MinecraftAgentPolicy(nn.Module):
             obs=obs, first=first, state_in=state_in, return_embedding=return_embedding
         )
         if return_embedding:
-            embedding, state_out = ret
-            return embedding, state_out
+            embedding, state_out, pi_logits = ret
+            return embedding, state_out, pi_logits
 
         (pd, vpred, _), state_out = ret
         return pd, self.value_head.denormalize(vpred)[:, 0], state_out
