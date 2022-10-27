@@ -146,12 +146,12 @@ class MultiProcessXIRLDataHandler:
 
             ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0)
 
-            for ready_index, ready_id in enumerate(ready_ids):
+            for ready_id in ready_ids:
                 # self.ready_samples.append(ready_id)
 
             # if len(ready_ids) > 0:
                 # print("num that were ready", len(ready_ids))
-                # ready_index = self.tasks.index(ready_ids[0])
+                ready_index = self.tasks.index(ready_id)
                 # ready_id = self.tasks[ready_index]
 
                 # overwrite task with new one.
