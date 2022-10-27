@@ -16,7 +16,7 @@ from xirl_config import XIRLConfig
 @ray.remote
 class XIRLDataHandler:
     def __init__(
-            self, config: XIRLConfig, dataset_path: str, device, # dynamics_function: DynamicsFunction
+            self, config: XIRLConfig, dataset_path: str, device, is_train: bool=True, # dynamics_function: DynamicsFunction
     ):
         # self.agent = agent
         # self.agent = load_agent(model_path, weights_path, device=device)  # TODO: should we use GPU or force CPU?
@@ -24,8 +24,7 @@ class XIRLDataHandler:
         self.config = config
         self.device = device
 
-        self.train_trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, is_train=True)
-        self.val_trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, is_train=False)
+        self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, is_train=is_train)
         # self.dynamics_function = dynamics_function
 
     def embed_trajectory(
@@ -94,17 +93,13 @@ class XIRLDataHandler:
         # print("finished loading")
         return frames, actions
 
-    def sample_pair(self, from_train: bool, max_frames: int = None):
-        if from_train:
-            t0 = self.train_trajectory_loader.sample()
-            t1 = self.train_trajectory_loader.sample()
-        else:
-            t0 = self.val_trajectory_loader.sample()
-            t1 = self.val_trajectory_loader.sample()
+    def sample_pair(self, max_frames: int = None):
+        t0 = self.trajectory_loader.sample()
+        t1 = self.trajectory_loader.sample()
 
         if t0.uid == t1.uid:
             # try again if they're the same.
-            return self.sample_pair(from_train=from_train, max_frames=max_frames)
+            return self.sample_pair(max_frames=max_frames)
 
         try:
             emb0 = self.embed_trajectory(t0, max_frames=max_frames)
@@ -112,10 +107,9 @@ class XIRLDataHandler:
             return emb0, emb1
         except:
             warn("Failed to embed trajectories. Trying to sample again...")
-            return self.sample_pair(from_train=from_train, max_frames=max_frames)
+            return self.sample_pair(max_frames=max_frames)
 
 
-@ray.remote
 class MultiProcessXIRLDataHandler:
     def __init__(
             self,  config: XIRLConfig, dataset_path: str, device, num_workers: int=4,
@@ -129,13 +123,13 @@ class MultiProcessXIRLDataHandler:
         self.handlers = []
         self.tasks = []
         for _ in range(num_workers):
-            handler = XIRLDataHandler.remote(config, dataset_path, device)
+            handler = XIRLDataHandler.remote(config, dataset_path, device, is_train=True)
             self.handlers.append(handler)
 
             # kick-start sampling
-            self.tasks.append(handler.sample_pair.remote(from_train=True))
+            self.tasks.append(handler.sample_pair.remote())
 
-    def sample_train_pair(self):
+    def sample_pair(self):
         # should trigger all handlers to begin getting their pair samples
 
         assert len(self.tasks) == len(self.handlers) == self.num_workers
@@ -150,24 +144,11 @@ class MultiProcessXIRLDataHandler:
             ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0)
 
             for ready_id in ready_ids:
-                # self.ready_samples.append(ready_id)
-
-            # if len(ready_ids) > 0:
-                # print("num that were ready", len(ready_ids))
                 ready_index = self.tasks.index(ready_id)
-                # ready_id = self.tasks[ready_index]
 
                 # overwrite task with new one.
-                self.tasks[ready_index] = self.handlers[ready_index].sample_train_pair.remote()
+                self.tasks[ready_index] = self.handlers[ready_index].sample_pair.remote()
 
-                # move the task and corresponding handler to the back of the line.
-                # moving_id = self.tasks.pop(ready_index)
-                # moving_handler = self.handlers.pop(ready_index)
-                # self.tasks.append(moving_id)
-                # self.handlers.append(moving_handler)
-
-                # return ray.get(ready_id)
-                # return ready_id
                 self.buffer.append(ready_id)
 
             if len(self.buffer) > 0:

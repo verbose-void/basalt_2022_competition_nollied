@@ -16,10 +16,14 @@ class TrajectoryBatcher:
 
     def __iter__(self):
         self._batch = 0
+        self._broke = False
         self._iterator = iter(self.trajectory)
         return self
 
     def __next__(self):
+        if self._broke:
+            raise StopIteration
+
         # accumulate enough samples for the current batch
         batch = []
 
@@ -29,6 +33,7 @@ class TrajectoryBatcher:
                 batch.append(frame)
 
             except StopIteration:
+                self._broke = True
                 break
 
         return torch.tensor(batch)
@@ -39,7 +44,7 @@ class TrajectoryBatcher:
 
 
 @torch.no_grad()
-def plot_xirl_reward_over_time(config: XIRLConfig, trajectory: ChunkedContiguousTrajectory, model: XIRLModel, target_embedding: torch.Tensor):
+def xirl_reward_over_time(config: XIRLConfig, trajectory: ChunkedContiguousTrajectory, model: XIRLModel, target_embedding: torch.Tensor):
 
     # need to first gather the target embedding from all of the videos
     # then need to load a video from the dataset and embed all of the frames
@@ -55,6 +60,8 @@ def plot_xirl_reward_over_time(config: XIRLConfig, trajectory: ChunkedContiguous
         if frame_batch.numel() <= 0:
             warn("Empty batch....")
             continue
+
+        frame_batch = frame_batch.to(torch.device("cuda"))
 
         # print(frame_batch.shape)
         embedded = model.embed(frame_batch)

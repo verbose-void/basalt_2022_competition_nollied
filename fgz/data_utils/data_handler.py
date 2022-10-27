@@ -234,7 +234,7 @@ def get_trajectories(dataset_path: str, for_training: bool, train_split: float):
         trajectory_prefix = os.path.join(dataset_path, f"{player_uid}-{game_uid}")
         full_trajectory_ids[trajectory_prefix].append((date, time))
 
-    max_train_idx = np.floor(len(full_trajectory_ids) * train_split)
+    max_train_idx = int(np.floor(len(full_trajectory_ids) * train_split))
 
     # sort and gather the trajectories into a single class
     trajectories: Sequence[ChunkedContiguousTrajectory] = []
@@ -250,7 +250,7 @@ def get_trajectories(dataset_path: str, for_training: bool, train_split: float):
         # print(trajectory_prefix, sorted_date_times)
 
         try:
-            chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix, task_id=task_id)
+            chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix)#, task_id=task_id)
             trajectories.append(chunked_traj)
         except ValueError:
             warn(f"Missing video/json path! Skipping... {trajectory_prefix} {sorted_date_times}")
@@ -264,7 +264,7 @@ class ContiguousTrajectoryDataLoader:
         self.dataset_path = dataset_path
         self.task_id = task_id
         self.minimum_steps = minimum_steps
-        self.is_train
+        self.is_train = is_train
 
         self.trajectories = get_trajectories(dataset_path, for_training=is_train, train_split=train_split)
         # create ContiguousTrajectory objects for every mp4/json file pair.
