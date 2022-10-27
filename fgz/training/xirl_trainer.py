@@ -99,7 +99,7 @@ class XIRLTrainer:
 
     def get_next_data(self):
         print("Asynchronously gathering the next trajectory pair...")
-        self.next_data = self.data_handler.sample_pair.remote()
+        self.next_data = self.data_handler.sample_train_pair.remote()
 
     def embed_trajectory(self, t):
         embedded = torch.zeros(size=(len(t), 2048), device=self.device, dtype=float)

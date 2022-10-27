@@ -24,9 +24,8 @@ class XIRLDataHandler:
         self.config = config
         self.device = device
 
-        # TODO: set to None!
-        max_num_trajectories = None
-        self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, max_num_trajectories=max_num_trajectories)
+        self.train_trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, is_train=True)
+        self.val_trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, is_train=False)
         # self.dynamics_function = dynamics_function
 
     def embed_trajectory(
@@ -95,13 +94,17 @@ class XIRLDataHandler:
         # print("finished loading")
         return frames, actions
 
-    def sample_pair(self, max_frames: int = None):
-        t0 = self.trajectory_loader.sample()
-        t1 = self.trajectory_loader.sample()
+    def sample_pair(self, from_train: bool, max_frames: int = None):
+        if from_train:
+            t0 = self.train_trajectory_loader.sample()
+            t1 = self.train_trajectory_loader.sample()
+        else:
+            t0 = self.val_trajectory_loader.sample()
+            t1 = self.val_trajectory_loader.sample()
 
         if t0.uid == t1.uid:
             # try again if they're the same.
-            return self.sample_pair()
+            return self.sample_pair(from_train=from_train, max_frames=max_frames)
 
         try:
             emb0 = self.embed_trajectory(t0, max_frames=max_frames)
@@ -109,7 +112,7 @@ class XIRLDataHandler:
             return emb0, emb1
         except:
             warn("Failed to embed trajectories. Trying to sample again...")
-            return self.sample_pair()
+            return self.sample_pair(from_train=from_train, max_frames=max_frames)
 
 
 @ray.remote
@@ -130,9 +133,9 @@ class MultiProcessXIRLDataHandler:
             self.handlers.append(handler)
 
             # kick-start sampling
-            self.tasks.append(handler.sample_pair.remote())
+            self.tasks.append(handler.sample_pair.remote(from_train=True))
 
-    def sample_pair(self):
+    def sample_train_pair(self):
         # should trigger all handlers to begin getting their pair samples
 
         assert len(self.tasks) == len(self.handlers) == self.num_workers
@@ -155,7 +158,7 @@ class MultiProcessXIRLDataHandler:
                 # ready_id = self.tasks[ready_index]
 
                 # overwrite task with new one.
-                self.tasks[ready_index] = self.handlers[ready_index].sample_pair.remote()
+                self.tasks[ready_index] = self.handlers[ready_index].sample_train_pair.remote()
 
                 # move the task and corresponding handler to the back of the line.
                 # moving_id = self.tasks.pop(ready_index)
