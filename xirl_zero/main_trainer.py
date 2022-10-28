@@ -54,10 +54,19 @@ class Trainer:
 
         self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path)
 
-    def train_step(self):
+    def sample(self, from_train: bool):
         # TODO: latency hide dataloading?
-        t0, t0_actions = self.train_loader.sample(self.config.num_frame_samples, max_frames=self.config.max_frames)
-        t1, t1_actions = self.train_loader.sample(self.config.num_frame_samples, max_frames=self.config.max_frames)
+
+        loader = self.train_loader if from_train else self.eval_loader
+
+        kwargs = {"num_frame_samples": self.config.num_frame_samples, "max_frames": self.config.max_frames}
+        t0, t0_actions = loader.sample(**kwargs)
+        t1, t1_actions = loader.sample(**kwargs)
+
+        return t0, t0_actions, t1, t1_actions
+
+    def train_step(self):
+        t0, t0_actions, t1, t1_actions = self.sample(from_train=True)
 
         # train the representation function on it's own
         # TODO: should we give the representation function a head-start?
@@ -68,11 +77,24 @@ class Trainer:
         self.dynamics_trainer.train_step(embedded_t1, t1_actions)
 
         if self.config.verbose:
-            print("\n\n----------------")
+            print("\n\n---------------- TRAIN ----------------")
             print("TCC Stats:")
             print(tcc_stats)
             print("Dynamics Function Stats:")
             print({})  # TODO
 
+    @torch.no_grad()
     def eval_step(self):
-        pass
+        t0, t0_actions, t1, t1_actions = self.sample(from_train=False)
+
+        tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.eval_step(t0, t1)
+
+        # self.dynamics_trainer.eval_step(embedded_t0, t0_actions)
+        # self.dynamics_trainer.eval_step(embedded_t1, t1_actions)
+
+        if self.config.verbose:
+            print("\n\n---------------- EVAL ----------------")
+            print("TCC Stats:")
+            print(tcc_stats)
+            print("Dynamics Function Stats:")
+            print({})  # TODO

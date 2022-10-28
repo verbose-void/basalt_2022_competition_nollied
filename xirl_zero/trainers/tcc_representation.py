@@ -180,3 +180,8 @@ class TCCRepresentationTrainer:
         self.optimizer.step()
 
         return stats, embedded_t0, embedded_t1
+
+    @torch.no_grad()
+    def eval_step(self, t0: torch.Tensor, t1: torch.Tensor):
+        stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=False)
+        return stats, embedded_t0, embedded_t1

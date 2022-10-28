@@ -11,6 +11,17 @@ if __name__ == "__main__":
     config = Config(dataset_path=dataset_path)
     trainer = Trainer(config)
 
+    def run_train(steps: int):
+        for _ in range(steps):
+            trainer.train_step()
+
+    def run_eval(steps: int):
+        for _ in range(steps):
+            trainer.eval_step()
+
+
     train_steps = 10
-    for _ in range(train_steps):
-        trainer.train_step()
+    run_train(train_steps)
+    
+    eval_steps = 10
+    run_eval(eval_steps)
