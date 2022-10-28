@@ -75,7 +75,7 @@ class MuZeroDynamicsTrainer:
         self.optimizer.step()
 
         return {
-            "loss": loss.item,
+            "loss": loss,
         }
 
     @torch.no_grad()

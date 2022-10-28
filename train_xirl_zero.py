@@ -35,7 +35,7 @@ if __name__ == "__main__":
         for step in range(steps):
             trainer.train_step()
 
-            if step % eval_every == 0:
+            if (step + 1) % eval_every == 0:
                 run_eval(eval_steps)
 
                 # TODO: calculate target state and visualize in wandb.
