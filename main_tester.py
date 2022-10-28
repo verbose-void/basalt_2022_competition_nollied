@@ -47,5 +47,5 @@ class Tester:
 
 
 if __name__ == "__main__":
-    tester = Tester("./train/xirl_zero/2022-10-28_02-41-38_PM")
+    tester = Tester("./train/xirl_zero/MineRLBasaltMakeWaterfall-v0/2022-10-28_02-52-40_PM")
     tester.load_environment()

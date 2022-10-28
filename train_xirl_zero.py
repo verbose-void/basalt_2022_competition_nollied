@@ -12,7 +12,7 @@ import torch
 # DATASET_PATH = "./data/MineRLBasaltMakeWaterfall-v0"
 MINERL_ENV_ID = "MineRLBasaltMakeWaterfall-v0"
 
-OUTPUT_DIR = "./train/xirl_zero/"
+OUTPUT_DIR = f"./train/xirl_zero/{MINERL_ENV_ID}"
 
 SMOKE_TEST = True
 USE_WANDB = False
@@ -28,6 +28,7 @@ SMOKE_TEST_CONFIG = Config(
     max_trajectories=8,
     use_wandb=USE_WANDB,
     model_log_frequency=1,
+    num_frame_samples=8,
 )
 
 CONFIG = Config(
