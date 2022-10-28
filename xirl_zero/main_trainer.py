@@ -19,6 +19,8 @@ class Config:
     # used for smoke tests
     max_frames: int = 10 if SMOKE_TEST else None
 
+    verbose: bool = True
+
 
 class Trainer:
     """This trainer class should concurrently run 2 different trainers:
@@ -64,6 +66,13 @@ class Trainer:
         # with the representation function's outputs, train the dyanmics function to lookahead
         self.dynamics_trainer.train_step(embedded_t0, t0_actions)
         self.dynamics_trainer.train_step(embedded_t1, t1_actions)
+
+        if self.config.verbose:
+            print("\n\n----------------")
+            print("TCC Stats:")
+            print(tcc_stats)
+            print("Dynamics Function Stats:")
+            print({})  # TODO
 
     def eval_step(self):
         pass

@@ -10,4 +10,7 @@ if __name__ == "__main__":
 
     config = Config(dataset_path=dataset_path)
     trainer = Trainer(config)
-    trainer.train_step()
+
+    train_steps = 10
+    for _ in range(train_steps):
+        trainer.train_step()
