@@ -79,10 +79,8 @@ class Trainer:
         tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.train_step(t0, t1)
 
         # with the representation function's outputs, train the dyanmics function to lookahead
-        self.dynamics_trainer.train_step(embedded_t0, t0_actions)
-        self.dynamics_trainer.train_step(embedded_t1, t1_actions)
+        zero_stats = self.dynamics_trainer.train_step(embedded_t0, t0_actions, embedded_t1, t1_actions)
 
-        zero_stats = {}  # TODO
         self.log(is_train=True, tcc_stats=tcc_stats, zero_stats=zero_stats)
 
         self.train_steps_taken += 1
@@ -92,11 +90,8 @@ class Trainer:
         t0, t0_actions, t1, t1_actions = self.sample(from_train=False)
 
         tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.eval_step(t0, t1)
+        zero_stats = self.dynamics_trainer.eval_step(embedded_t0, t0_actions, embedded_t1, t1_actions)
 
-        # self.dynamics_trainer.eval_step(embedded_t0, t0_actions)
-        # self.dynamics_trainer.eval_step(embedded_t1, t1_actions)
-
-        zero_stats = {}  # TODO
         self.log(is_train=False, tcc_stats=tcc_stats, zero_stats=zero_stats)
 
     def get_target_state(self):
