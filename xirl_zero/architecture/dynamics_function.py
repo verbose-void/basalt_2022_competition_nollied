@@ -156,7 +156,7 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         )
 
         button_vectors, camera_vectors = vectorize_minerl_actions(actions, device=self.states.device)
-        new_states, discrim_logits = self.dynamics_function.forward(
+        new_states = self.dynamics_function.forward(
             self.states, button_vectors, camera_vectors
         )
 

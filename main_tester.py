@@ -1,4 +1,6 @@
 import os
+from fractal_zero.data.tree_sampler import TreeSampler
+from fractal_zero.search.fmc import FMC
 
 import gym
 
@@ -54,6 +56,8 @@ class Tester:
             self.target_state,
         )
 
+        self.fmc = FMC(self.dynamics_env)
+
     def get_action(self, obs, force_no_escape: bool):
         self.representation_function.eval()
         self.dynamics_function.eval()
@@ -61,7 +65,12 @@ class Tester:
         obs = torch.tensor(obs, device=self.device)
         state = self.representation_function.embed(obs).squeeze()
         self.dynamics_env.set_all_states(state)
-        action = self.dynamics_env.action_space.sample()  # TODO FMC
+
+        # action = self.dynamics_env.action_space.sample()  # TODO FMC
+        self.fmc.simulate(16)
+        tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
+        observations, actions, _, confusions, infos = tree_sampler.get_batch()
+        action = actions[0]
 
         if force_no_escape:
             action["ESC"] = 0
