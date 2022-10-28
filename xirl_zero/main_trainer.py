@@ -3,8 +3,11 @@ import torch
 from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 
 
-from xirl_zero.trainers.tcc_representation import TCCRepresentationTrainer
+from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTrainer
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsTrainer
+
+
+SMOKE_TEST = True
 
 
 @dataclass
@@ -12,6 +15,9 @@ class Config:
     dataset_path: str
 
     num_frame_samples: int = 128
+
+    # used for smoke tests
+    max_frames: int = 10 if SMOKE_TEST else None
 
 
 class Trainer:
@@ -41,17 +47,15 @@ class Trainer:
 
         self.config = config
 
-        self.representation_trainer = TCCRepresentationTrainer()
+        self.representation_trainer = TCCRepresentationTrainer(TCCConfig())
         self.dynamics_trainer = MuZeroDynamicsTrainer()
 
         self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path)
 
     def train_step(self):
         # TODO: latency hide dataloading?
-        t0, t0_actions = self.train_loader.sample(self.config.num_frame_samples)
-        t1, t1_actions = self.train_loader.sample(self.config.num_frame_samples)
-
-        print(t0.shape, t0_actions)
+        t0, t0_actions = self.train_loader.sample(self.config.num_frame_samples, max_frames=self.config.max_frames)
+        t1, t1_actions = self.train_loader.sample(self.config.num_frame_samples, max_frames=self.config.max_frames)
 
         # train the representation function on it's own
         # TODO: should we give the representation function a head-start?

@@ -30,8 +30,9 @@ def read_frames_and_actions(trajectory: ChunkedContiguousTrajectory, num_frame_s
         # aware of.
 
         # we can't load more frames than are available
-        nframes_to_use = min(num_frame_samples, len(trajectory))
-        frames_to_use = torch.round(torch.linspace(start=0, end=len(trajectory), steps=nframes_to_use)).int().tolist()
+        num_frames = len(trajectory) if max_frames is None else min(max_frames, len(trajectory))
+        nframes_to_use = min(num_frame_samples, num_frames)
+        frames_to_use = torch.round(torch.linspace(start=0, end=num_frames, steps=nframes_to_use)).int().tolist()
 
         c = 0
 
@@ -141,9 +142,9 @@ class ContiguousTrajectoryLoader:
             return self.sample_trajectory_object()
         return t
 
-    def sample(self, num_frame_samples: int):
+    def sample(self, num_frame_samples: int, max_frames: int=None):
         t = self.sample_trajectory_object()
-        return read_frames_and_actions(t, num_frame_samples=num_frame_samples)
+        return read_frames_and_actions(t, num_frame_samples=num_frame_samples, max_frames=max_frames)
 
     @staticmethod
     def get_train_and_eval_loaders(dataset_path: str, train_split: float=0.8):

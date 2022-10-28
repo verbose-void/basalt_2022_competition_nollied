@@ -1,11 +1,84 @@
-from typing import Tuple
+from dataclasses import dataclass
+from typing import List, Tuple
 import torch
 
+import os
+
+from fgz.architecture.xirl_model import XIRLModel
+
+
+MINERL_DATA_ROOT = os.getenv("MINERL_DATA_ROOT", "data/")
+VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
+
+
+@dataclass
+class TCCConfig:
+    # model_filename: str = "foundation-model-1x.model"
+    model_filename: str = "foundation-model-2x.model"
+    # model_filename: str = "foundation-model-3x.model"
+
+    # weights_filename: str = "foundation-model-1x.weights"
+    weights_filename: str = "rl-from-early-game-2x.weights"
+
+    learning_rate: float = 0.001
+
+    embed_batch_size: int = 32
+
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+    @property
+    def model_path(self) -> str:
+        return os.path.join(VPT_MODELS_ROOT, self.model_filename)
+
+    @property
+    def weights_path(self) -> str:
+        return os.path.join(VPT_MODELS_ROOT, self.weights_filename)
+
 class TCCRepresentationTrainer:
+
+    def __init__(self, config: TCCConfig):
+        self.config = config
+
+        self.model = XIRLModel(self.config, config.device)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5, betas=(0.99, 0.999))
+
+    def soft_nearest_neighbor(
+        self, frame_embedding: torch.Tensor,
+        other_embeddings: List[torch.Tensor],
+    ):
+        expanded_frame_embedding = frame_embedding.expand(
+            len(other_embeddings), -1
+        )
+
+        # l2 similarity
+        similarity = -torch.norm(expanded_frame_embedding - other_embeddings, dim=1)
+        similarity /= self.config.temperature
+
+        alpha_k = torch.softmax(similarity, dim=0)
+
+        return alpha_k
+
+    def embed_trajectory(self, t: torch.Tensor):
+        embedded = torch.zeros(size=(len(t), 2048), device=self.config.device, dtype=float)
+
+        bs = self.config.embed_batch_size
+
+        i = 0
+        while i < len(t):
+            x = t[i:i+bs]
+            batch = x.to(self.config.device)
+            embedded[i:i+bs] = self.model.embed(batch)
+
+            i += len(x)
+
+        return embedded.float()
 
     def train_step(self, t0: torch.Tensor, t1: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """The representation function is trained using Temporal Cycle-Consistency (https://arxiv.org/pdf/1904.07846.pdf) 
         loss over a subset of the frames in a pair of demonstration trajectories.
         """
 
-        return None, None  # TODO: return embedded
+        embedded_t0 = self.embed_trajectory(t0)
+        embedded_t1 = self.embed_trajectory(t1)
+
+        return embedded_t0, embedded_t1

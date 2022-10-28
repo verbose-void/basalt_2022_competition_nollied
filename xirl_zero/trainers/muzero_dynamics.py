@@ -14,4 +14,5 @@ class MuZeroDynamicsTrainer:
         """
 
         num_sub_frames = len(embedded_sub_trajectory)
-        assert num_sub_frames == len(actions_preceeding_each_timestep)
+        assert num_sub_frames - 1 == len(actions_preceeding_each_timestep), f"{embedded_sub_trajectory.shape} and {len(actions_preceeding_each_timestep)}"
+        
