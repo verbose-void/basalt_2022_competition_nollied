@@ -127,7 +127,7 @@ class Trainer:
 
             wandb.log({
                 "train_steps": self.train_steps_taken,
-                f"{key}/tcc/": tcc_stats,
-                f"{key}/zero/": zero_stats,
+                f"{key}/representation/": tcc_stats,
+                f"{key}/dynamics/": zero_stats,
                 f"{key}/data/": data_stats,
             })

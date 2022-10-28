@@ -21,7 +21,7 @@ class MuZeroDynamicsTrainer:
         # TODO: use pretrained weights/steal architecture from the agent!
         self.model = DynamicsFunction(2048, button_features=32, camera_features=32).to(self.config.device)
 
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.001)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=0.00001)
 
     def calculate_loss(
         self, 
@@ -75,7 +75,7 @@ class MuZeroDynamicsTrainer:
         self.optimizer.step()
 
         return {
-            "loss": loss,
+            "loss": loss.item,
         }
 
     @torch.no_grad()
