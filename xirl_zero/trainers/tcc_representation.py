@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import os
 
 from fgz.architecture.xirl_model import XIRLModel
+from fgz.data_utils.data_handler import ContiguousTrajectoryDataLoader
+from fgz.data_utils.generate_xirl_targets import generate_target
 
 
 MINERL_DATA_ROOT = os.getenv("MINERL_DATA_ROOT", "data/")
@@ -187,3 +189,7 @@ class TCCRepresentationTrainer:
         self.model.eval()
         stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=False)
         return stats, embedded_t0, embedded_t1
+
+    @torch.no_grad()
+    def generate_target_state(self, loader: ContiguousTrajectoryDataLoader, use_tqdm: bool=True):
+        return generate_target(self.config, self.model, loader, use_tqdm=use_tqdm)

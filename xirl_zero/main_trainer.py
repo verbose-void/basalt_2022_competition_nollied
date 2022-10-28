@@ -99,6 +99,9 @@ class Trainer:
         zero_stats = {}  # TODO
         self.log(is_train=False, tcc_stats=tcc_stats, zero_stats=zero_stats)
 
+    def get_target_state(self):
+        return self.representation_trainer.generate_target_state(self.train_loader)
+
     def log(self, is_train: bool, tcc_stats: Dict, zero_stats: Dict):
         if self.config.verbose:
             if is_train:

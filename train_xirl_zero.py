@@ -25,3 +25,6 @@ if __name__ == "__main__":
     
     eval_steps = 10
     run_eval(eval_steps)
+
+    train_target_state = trainer.get_target_state()
+    print(train_target_state)

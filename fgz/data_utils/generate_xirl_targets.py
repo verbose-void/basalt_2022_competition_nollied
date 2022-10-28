@@ -10,8 +10,8 @@ import torch
 
 
 @torch.no_grad()
-def generate_target(config: XIRLConfig, model: XIRLModel, dataset_path: str):
-    trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path)
+def generate_target(config: XIRLConfig, model: XIRLModel, trajectory_loader: ContiguousTrajectoryDataLoader, use_tqdm: bool):
+    model.eval()
 
     bs = config.embed_batch_size
     target_embedding = torch.zeros(2048, dtype=float)
@@ -25,7 +25,13 @@ def generate_target(config: XIRLConfig, model: XIRLModel, dataset_path: str):
         return torch.sum(embedded_batch, dim=0).cpu()
 
     num_demonstrations = 0
-    for trajectory in tqdm(trajectory_loader.trajectories, desc="Loading last frames", total=len(trajectory_loader.trajectories)):
+    for trajectory in tqdm(
+        trajectory_loader.trajectories, 
+        desc="Calculating XIRL Target State", 
+        total=len(trajectory_loader.trajectories),
+        disable=not use_tqdm,
+    ):
+
         try:
             all_last_frames.append(trajectory.get_last_frame())
             num_demonstrations += 1
