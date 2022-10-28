@@ -17,7 +17,8 @@ OUTPUT_DIR = "./train/xirl_zero/"
 SMOKE_TEST = True
 USE_WANDB = False
 
-SMOKE_CONFIG = Config(
+# NOTE: a smoke test is basically a very fast run through the entire train script with the aim of catching runtime errors.
+SMOKE_TEST_CONFIG = Config(
     dataset_path=DATASET_PATH,
     train_steps=5,
     eval_every=1,
@@ -28,6 +29,7 @@ SMOKE_CONFIG = Config(
     use_wandb=USE_WANDB,
     model_log_frequency=1,
 )
+
 CONFIG = Config(
     dataset_path=DATASET_PATH,
     train_steps=10_000,
@@ -41,7 +43,7 @@ CONFIG = Config(
 )
 
 if __name__ == "__main__":
-    config = SMOKE_CONFIG if SMOKE_TEST else CONFIG
+    config = SMOKE_TEST_CONFIG if SMOKE_TEST else CONFIG
 
     if SMOKE_TEST:
         warn("\n\n\n\n\n\nWARNING: DOING A SMOKE TEST!\n\n\n\n\n\n")
