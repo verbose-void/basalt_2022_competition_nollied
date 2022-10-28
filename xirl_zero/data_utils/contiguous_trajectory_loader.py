@@ -4,12 +4,76 @@
 from collections import defaultdict
 from glob import glob
 from logging import warn
-from typing import Sequence
+from typing import Sequence, Tuple
 import os
+import torch
 
 import numpy as np
 
 from fgz.data_utils.data_handler import ChunkedContiguousTrajectory, get_trajectories
+
+def read_frames_and_actions(trajectory: ChunkedContiguousTrajectory, num_frame_samples: int, max_frames: int = None):
+    # reset hidden state.
+    # self.agent.reset()
+
+    frames = []
+
+    # actions are stored as sub-lists of actions, where each sublist corresponds to all actions
+    # between the frame samples.
+    sup_actions: Sequence[Tuple] = []
+    sub_actions = []
+
+    with torch.no_grad():
+        # NOTE: some frames may get corrupt during the loading process, 
+        # if that occurs not all frames will be used probably. it may not
+        # have a huge impact on training, but it's definitely good to be
+        # aware of.
+
+        # we can't load more frames than are available
+        nframes_to_use = min(num_frame_samples, len(trajectory))
+        frames_to_use = torch.round(torch.linspace(start=0, end=len(trajectory), steps=nframes_to_use)).int().tolist()
+
+        c = 0
+
+        last_frame = None
+        for i, (frame, action) in enumerate(trajectory):
+            if max_frames is not None and i >= max_frames:
+                break
+
+            if i in frames_to_use:
+                # the first frame will always be included, but never have populated sub_actions.
+                if i > 0:
+                    sup_actions.append(tuple(sub_actions))
+
+                sub_actions = [action]
+
+            if i not in frames_to_use:
+                # NOTE: this is a hack -- it would be faster to not load these frames from the disk at all.
+                sub_actions.append(action)
+                continue
+
+            frame_tensor = torch.tensor(frame)
+            frames.append(frame_tensor.float())
+
+            c += 1
+
+            last_frame = frame_tensor
+
+        # print(frames_to_use)
+        # print(len(frames_to_use))
+        assert len(frames) <= len(frames_to_use)
+
+        # ensure we always have the last frame in the sequence.
+        if last_frame is not None and c < len(frames_to_use):
+            frames.append(last_frame)
+
+    if len(sub_actions) > 0:
+        sup_actions.append(tuple(sub_actions))
+
+    frames = torch.stack(frames)
+    frames.requires_grad = True
+
+    return frames, sup_actions
 
 
 def get_trajectories(dataset_path: str, train_split: float):
@@ -56,11 +120,30 @@ def get_trajectories(dataset_path: str, train_split: float):
 
 
 class ContiguousTrajectoryLoader:
+    trajectories: Sequence[ChunkedContiguousTrajectory]
 
     def __init__(self, trajectories: Sequence[ChunkedContiguousTrajectory]):
         self.trajectories = trajectories
 
-        pass
+        self.minimum_steps = 64
+
+    def sample_trajectory_object(self) -> ChunkedContiguousTrajectory:
+        trajectory_index = np.random.randint(low=0, high=len(self.trajectories))
+        t = self.trajectories[trajectory_index]
+
+        # remove the trajectory and pick a new sample if it's not long enough.
+        t_len = len(t)
+        if t_len < self.minimum_steps:
+            self.trajectories.pop(trajectory_index)
+            warn(
+                f"Removing trajectory from the dataset. It's length was too short ({t_len} < {self.minimum_steps}). Now there are {len(self.trajectories)} left."
+            )
+            return self.sample_trajectory_object()
+        return t
+
+    def sample(self, num_frame_samples: int):
+        t = self.sample_trajectory_object()
+        return read_frames_and_actions(t, num_frame_samples=num_frame_samples)
 
     @staticmethod
     def get_train_and_eval_loaders(dataset_path: str, train_split: float=0.8):

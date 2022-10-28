@@ -1,9 +1,17 @@
+from dataclasses import dataclass
 import torch
 from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 
 
 from xirl_zero.trainers.tcc_representation import TCCRepresentationTrainer
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsTrainer
+
+
+@dataclass
+class Config:
+    dataset_path: str
+
+    num_frame_samples: int = 128
 
 
 class Trainer:
@@ -28,18 +36,22 @@ class Trainer:
     -   Should these be steps in the training process or happen concurrently?
     """
 
-    def __init__(self, dataset_path: str):
+    def __init__(self, config: Config):
         # each trainer instance belongs to only 1 task.
+
+        self.config = config
 
         self.representation_trainer = TCCRepresentationTrainer()
         self.dynamics_trainer = MuZeroDynamicsTrainer()
 
-        self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(dataset_path)
+        self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path)
 
     def train_step(self):
-        # TODO: sample 2 trajectories for a pair
-        t0, t1 = None, None  
-        t0_actions, t1_actions = None, None
+        # TODO: latency hide dataloading?
+        t0, t0_actions = self.train_loader.sample(self.config.num_frame_samples)
+        t1, t1_actions = self.train_loader.sample(self.config.num_frame_samples)
+
+        print(t0.shape, t0_actions)
 
         # train the representation function on it's own
         # TODO: should we give the representation function a head-start?
