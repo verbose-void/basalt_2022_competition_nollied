@@ -11,10 +11,12 @@ from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajecto
 from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTrainer
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig, MuZeroDynamicsTrainer
 
+from xirl_zero.trainers.tcc_representation import MINERL_DATA_ROOT, VPT_MODELS_ROOT
+
 
 @dataclass
 class Config:
-    dataset_path: str
+    dataset_dir: str
 
     train_steps: int
     eval_every: int
@@ -34,6 +36,10 @@ class Config:
 
     representation_config: TCCConfig = field(default_factory=TCCConfig)
     dynamics_config: MuZeroDynamicsConfig = field(default_factory=MuZeroDynamicsConfig)
+
+    @property
+    def dataset_path(self):
+        return os.path.join(MINERL_DATA_ROOT, self.dataset_dir)
 
     def asdict(self):
         d = dict(self.__dict__)

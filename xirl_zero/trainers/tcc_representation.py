@@ -192,4 +192,4 @@ class TCCRepresentationTrainer:
 
     @torch.no_grad()
     def generate_target_state(self, loader: ContiguousTrajectoryDataLoader, use_tqdm: bool=True):
-        return generate_target(self.config, self.model, loader, use_tqdm=use_tqdm)
+        return generate_target(self.config, self.model, loader, use_tqdm=use_tqdm, device=self.config.device)

@@ -10,19 +10,19 @@ import torch
 
 
 @torch.no_grad()
-def generate_target(config: XIRLConfig, model: XIRLModel, trajectory_loader: ContiguousTrajectoryDataLoader, use_tqdm: bool):
+def generate_target(config: XIRLConfig, model: XIRLModel, trajectory_loader: ContiguousTrajectoryDataLoader, use_tqdm: bool, device = None):
     model.eval()
 
     bs = config.embed_batch_size
-    target_embedding = torch.zeros(2048, dtype=float)
+    target_embedding = torch.zeros(2048, dtype=float, device=device)
 
     all_last_frames = []
 
     def _process_batch():
-        batch = torch.tensor(all_last_frames, device=torch.device("cuda"))
+        batch = torch.tensor(all_last_frames, device=device)
         embedded_batch = model.embed(batch)
         all_last_frames.clear()
-        return torch.sum(embedded_batch, dim=0).cpu()
+        return torch.sum(embedded_batch, dim=0)
 
     num_demonstrations = 0
     for trajectory in tqdm(

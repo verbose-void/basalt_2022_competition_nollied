@@ -7,10 +7,10 @@ from xirl_zero.main_trainer import Config, Trainer
 import torch
 
 
-
 # TODO: determine based on task idx
 # DATASET_PATH = "/Volumes/CORSAIR/data/MineRLBasaltMakeWaterfall-v0"
-DATASET_PATH = "./data/MineRLBasaltMakeWaterfall-v0"
+# DATASET_PATH = "./data/MineRLBasaltMakeWaterfall-v0"
+DATASET_DIR = "MineRLBasaltMakeWaterfall-v0"
 
 OUTPUT_DIR = "./train/xirl_zero/"
 
@@ -19,7 +19,7 @@ USE_WANDB = False
 
 # NOTE: a smoke test is basically a very fast run through the entire train script with the aim of catching runtime errors.
 SMOKE_TEST_CONFIG = Config(
-    dataset_path=DATASET_PATH,
+    dataset_dir=DATASET_DIR,
     train_steps=5,
     eval_every=1,
     eval_steps=5,
@@ -31,7 +31,7 @@ SMOKE_TEST_CONFIG = Config(
 )
 
 CONFIG = Config(
-    dataset_path=DATASET_PATH,
+    dataset_dir=DATASET_DIR,
     train_steps=10_000,
     eval_every=100,
     eval_steps=0,
