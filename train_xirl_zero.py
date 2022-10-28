@@ -29,6 +29,7 @@ SMOKE_TEST_CONFIG = Config(
     use_wandb=USE_WANDB,
     model_log_frequency=1,
     num_frame_samples=8,
+    verbose=True,
 )
 
 CONFIG = Config(

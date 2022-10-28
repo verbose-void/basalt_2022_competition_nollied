@@ -52,7 +52,6 @@ class DynamicsFunction(torch.nn.Module):
         button_features: int = 16,
         camera_features: int = 16,
         embedder_layers: int = 4,
-        discriminator_classes: int = 2,
     ):
         super().__init__()
 
@@ -84,17 +83,11 @@ class DynamicsFunction(torch.nn.Module):
             # torch.nn.Sigmoid(),  # prevent discriminator from exploiting FMC similarity measure.
         )
 
-        self.discriminator_head = torch.nn.Sequential(
-            torch.nn.ReLU(),
-            torch.nn.Linear(state_embedding_size, discriminator_classes),
-            # torch.nn.Softmax(),  # prevent discriminator from making FMC think it's getting high rewards when the scale is just large
-        )
-
     def dummy_initial_state(self):
         return torch.zeros(self.state_embedding_size, dtype=float, requires_grad=True)
 
     def forward(
-        self, state_embedding, buttons_vector, camera_vector, use_discrim: bool = True
+        self, state_embedding, buttons_vector, camera_vector,
     ):
         assert (
             state_embedding.dim() <= 2
@@ -109,13 +102,7 @@ class DynamicsFunction(torch.nn.Module):
         )
         new_state = self.embedder.forward(concat_state)
 
-        if not use_discrim:
-            return new_state
-
-        # TODO: residual from old state embedding to new?
-        discriminator_logits = self.discriminator_head(new_state)
-
-        return new_state, discriminator_logits
+        return new_state
 
     def forward_action(
         self, state_embedding: torch.Tensor, action, use_discrim: bool = True
@@ -136,21 +123,16 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self,
         action_space: gym.Env,
         dynamics_function: DynamicsFunction,
-        agent: MineRLAgent,
+        target_state: torch.Tensor,
         n: int = 1,
-        apply_softmax_before_reward: bool = True,
-        use_agent_policy: bool = True,
     ):
         self.action_space = action_space
         self.dynamics_function = dynamics_function
-        self.agent = agent
-        self.use_agent_policy = use_agent_policy
+        self.target_state = target_state
         self.n = n
 
         # NOTE: this should be updated with each trajectory in the training script.
         self.target_discriminator_logit = None
-
-        self.apply_softmax_before_reward = apply_softmax_before_reward
 
         self.states = dynamics_function.dummy_initial_state()
 
@@ -162,10 +144,10 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         self.states = torch.zeros((self.n, self.dynamics_function.state_embedding_size), device=state_embedding.device)
         self.states[:] = state_embedding
 
-        # self.dynamics_function = self.dynamics_function.to(self.states.device)
-
     def batch_step(self, actions, freeze_mask):
         freeze_mask = freeze_mask.to(self.states.device)
+
+        self.dynamics_function.eval()
 
         assert len(actions) == self.n
         assert self.states.shape == (
@@ -181,21 +163,7 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         # don't forward frozen states, frozen state's confusions are 0.
         self.states[freeze_mask != 1] = new_states[freeze_mask != 1]
 
-        # applying a softmax before calculating the confusion reward means all of the
-        # other logits are beingn minimized, including the FMC logit. this is ideal,
-        # because it means the actions preferred by FMC simultaneously maximize the target logit
-        # and minimize all of the others.
-        if self.apply_softmax_before_reward:
-            soft_logits = F.softmax(discrim_logits, dim=-1)
-            # soft_confusions = 1-soft_logits[:, self.target_discriminator_logit]
-            soft_confusions = soft_logits[:, self.target_discriminator_logit]
-            rewards = torch.where(freeze_mask, 0, soft_confusions)
-        else:
-            # target_discrim_class_confusions = 1-discrim_logits[:, self.target_discriminator_logit]
-            target_discrim_class_confusions = discrim_logits[
-                :, self.target_discriminator_logit
-            ]
-            rewards = torch.where(freeze_mask, 0, target_discrim_class_confusions)
+        raise NotImplementedError("TODO: inverse distance reward")
 
         obs = self.states
         dones = torch.zeros(self.n).bool()
@@ -216,11 +184,6 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         actions = []
         for _ in range(self.n):
             action_space = self.action_space
-
-            if self.use_agent_policy:
-                action = self.agent.sample_action()
-            else:
-                action = action_space.sample()
-
+            action = action_space.sample()
             actions.append(action)
         return actions

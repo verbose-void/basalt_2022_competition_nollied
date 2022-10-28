@@ -43,9 +43,44 @@ class Tester:
             raise ValueError(f"Cross-task testing is not recommended. The actual env ID loaded was {actual_env_id}, but we expected {self.minerl_env_id}.")
 
         self.env = env
-        # self.dynamics_env = MineRLDynamicsEnvironment(self.env.action_space, self.dynamics_function)
+        self.dynamics_env = MineRLDynamicsEnvironment(
+            self.env.action_space, 
+            self.dynamics_function, 
+            self.target_state,
+        )
 
+    def get_action(self, obs, force_no_escape: bool):
+        self.representation_function.eval()
+        self.dynamics_function.eval()
+
+        state = self.representation_function.embed(obs)
+        self.dynamics_env.set_all_states(state)
+        action = {}  # TODO
+
+        if force_no_escape:
+            action["ESC"] = 0
+
+    def play_episode(self, min_steps: int, max_steps: int, render: bool = False):
+        if self.env is None:
+            raise ValueError("load_environment must be called first.")
+
+        obs = self.env.reset()
+
+        for step in range(max_steps):
+
+            action = self.get_action(obs, force_no_escape=step < min_steps)
+
+            obs, reward, done, info = self.env.step(action)
+
+            if render:
+                self.env.render()
+
+            if done:
+                break
+
+        self.env.close()
 
 if __name__ == "__main__":
     tester = Tester("./train/xirl_zero/MineRLBasaltMakeWaterfall-v0/2022-10-28_02-52-40_PM")
     tester.load_environment()
+    tester.play_episode(min_steps=16, max_steps=64, render=False)
