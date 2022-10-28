@@ -30,6 +30,16 @@ class Config:
     representation_config: TCCConfig = field(default_factory=TCCConfig)
     dynamics_config: MuZeroDynamicsConfig = field(default_factory=MuZeroDynamicsConfig)
 
+    def asdict(self):
+        d = self.__dict__
+
+        d.pop("representation_config")
+        d.pop("dynamics_config")
+        d["representation_config"] = self.representation_config.__dict__
+        d["dynamics_config"] = self.dynamics_config.__dict__
+
+        return d
+
 
 
 class Trainer:

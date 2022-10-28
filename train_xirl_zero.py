@@ -25,7 +25,7 @@ if __name__ == "__main__":
     )
 
     if config.use_wandb:
-        wandb.init(project="xirl_zero", config=config.__dict__)
+        wandb.init(project="xirl_zero", config=config.asdict())
 
     trainer = Trainer(config)
 
