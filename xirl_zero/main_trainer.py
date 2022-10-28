@@ -9,7 +9,7 @@ from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTr
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsTrainer
 
 
-SMOKE_TEST = True
+SMOKE_TEST = False
 
 
 @dataclass
@@ -71,6 +71,17 @@ class Trainer:
 
         return t0, t0_actions, t1, t1_actions
 
+    def _get_data_stats(self, t0, t0_actions, t1, t1_actions):
+
+        atotal = 0
+        atotal += sum([len(actions) for actions in t0_actions])
+        atotal += sum([len(actions) for actions in t1_actions])
+        
+        return {
+            "total_frames": len(t0) + len(t1),
+            "total_actions": atotal,
+        }
+
     def train_step(self):
         t0, t0_actions, t1, t1_actions = self.sample(from_train=True)
 
@@ -81,7 +92,8 @@ class Trainer:
         # with the representation function's outputs, train the dyanmics function to lookahead
         zero_stats = self.dynamics_trainer.train_step(embedded_t0, t0_actions, embedded_t1, t1_actions)
 
-        self.log(is_train=True, tcc_stats=tcc_stats, zero_stats=zero_stats)
+        data_stats = self._get_data_stats(t0, t0_actions, t1, t1_actions)
+        self.log(is_train=True, data_stats=data_stats, tcc_stats=tcc_stats, zero_stats=zero_stats)
 
         self.train_steps_taken += 1
 
@@ -92,12 +104,13 @@ class Trainer:
         tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.eval_step(t0, t1)
         zero_stats = self.dynamics_trainer.eval_step(embedded_t0, t0_actions, embedded_t1, t1_actions)
 
-        self.log(is_train=False, tcc_stats=tcc_stats, zero_stats=zero_stats)
+        data_stats = self._get_data_stats(t0, t0_actions, t1, t1_actions)
+        self.log(is_train=False, data_stats=data_stats, tcc_stats=tcc_stats, zero_stats=zero_stats)
 
     def get_target_state(self):
         return self.representation_trainer.generate_target_state(self.train_loader)
 
-    def log(self, is_train: bool, tcc_stats: Dict, zero_stats: Dict):
+    def log(self, is_train: bool, data_stats: Dict, tcc_stats: Dict, zero_stats: Dict):
         if self.config.verbose:
             if is_train:
                 print("\n\n---------------- TRAIN ----------------")
@@ -108,6 +121,8 @@ class Trainer:
             print(tcc_stats)
             print("\nDynamics Function Stats:")
             print(zero_stats)
+            print("\nData Stats:")
+            print(data_stats)
 
         if self.config.use_wanbd and wandb.run is not None:
             key = "train" if is_train else "eval"
@@ -116,4 +131,5 @@ class Trainer:
                 "train_steps": self.train_steps_taken,
                 f"{key}/tcc/": tcc_stats,
                 f"{key}/zero/": zero_stats,
+                f"{key}/data/": data_stats,
             })
