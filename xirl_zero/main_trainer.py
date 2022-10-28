@@ -9,9 +9,6 @@ from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTr
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsTrainer
 
 
-SMOKE_TEST = False
-
-
 @dataclass
 class Config:
     dataset_path: str
@@ -19,7 +16,7 @@ class Config:
     num_frame_samples: int = 128
 
     # used for smoke tests
-    max_frames: int = 10 if SMOKE_TEST else None
+    max_frames: int = None
 
     verbose: bool = True
 
@@ -90,6 +87,7 @@ class Trainer:
         tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.train_step(t0, t1)
 
         # with the representation function's outputs, train the dyanmics function to lookahead
+        # TODO: should we latency hide the dynamics function training?
         zero_stats = self.dynamics_trainer.train_step(embedded_t0, t0_actions, embedded_t1, t1_actions)
 
         data_stats = self._get_data_stats(t0, t0_actions, t1, t1_actions)
