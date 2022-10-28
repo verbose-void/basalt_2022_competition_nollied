@@ -1,8 +1,10 @@
 from dataclasses import dataclass
+from typing import Dict
 import torch
+
+import wandb
+
 from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
-
-
 from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTrainer
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsTrainer
 
@@ -20,6 +22,8 @@ class Config:
     max_frames: int = 10 if SMOKE_TEST else None
 
     verbose: bool = True
+
+    use_wanbd: bool = False
 
 
 class Trainer:
@@ -54,6 +58,8 @@ class Trainer:
 
         self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path)
 
+        self.train_steps_taken = 0
+
     def sample(self, from_train: bool):
         # TODO: latency hide dataloading?
 
@@ -76,12 +82,10 @@ class Trainer:
         self.dynamics_trainer.train_step(embedded_t0, t0_actions)
         self.dynamics_trainer.train_step(embedded_t1, t1_actions)
 
-        if self.config.verbose:
-            print("\n\n---------------- TRAIN ----------------")
-            print("TCC Stats:")
-            print(tcc_stats)
-            print("Dynamics Function Stats:")
-            print({})  # TODO
+        zero_stats = {}  # TODO
+        self.log(is_train=True, tcc_stats=tcc_stats, zero_stats=zero_stats)
+
+        self.train_steps_taken += 1
 
     @torch.no_grad()
     def eval_step(self):
@@ -92,9 +96,26 @@ class Trainer:
         # self.dynamics_trainer.eval_step(embedded_t0, t0_actions)
         # self.dynamics_trainer.eval_step(embedded_t1, t1_actions)
 
+        zero_stats = {}  # TODO
+        self.log(is_train=False, tcc_stats=tcc_stats, zero_stats=zero_stats)
+
+    def log(self, is_train: bool, tcc_stats: Dict, zero_stats: Dict):
         if self.config.verbose:
-            print("\n\n---------------- EVAL ----------------")
+            if is_train:
+                print("\n\n---------------- TRAIN ----------------")
+            else:
+                print("\n\n---------------- EVAL ----------------")
+
             print("TCC Stats:")
             print(tcc_stats)
-            print("Dynamics Function Stats:")
-            print({})  # TODO
+            print("\nDynamics Function Stats:")
+            print(zero_stats)
+
+        if self.config.use_wanbd and wandb.run is not None:
+            key = "train" if is_train else "eval"
+
+            wandb.log({
+                "train_steps": self.train_steps_taken,
+                f"{key}/tcc/": tcc_stats,
+                f"{key}/zero/": zero_stats,
+            })
