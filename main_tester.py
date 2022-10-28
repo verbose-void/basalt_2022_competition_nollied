@@ -3,6 +3,8 @@ import os
 import gym
 
 import torch
+import numpy as np
+from vpt.agent import AGENT_RESOLUTION
 
 from xirl_zero.main_trainer import Trainer
 from xirl_zero.architecture.dynamics_function import MineRLDynamicsEnvironment
@@ -27,6 +29,9 @@ class Tester:
 
         trainer: Trainer = torch.load(checkpoint_path, map_location=device)
         target_state: torch.Tensor = torch.load(target_state_path, map_location=device)
+
+        # TODO: handle this better?
+        self.device = device if device is not None else trainer.representation_trainer.config.device
 
         self.minerl_env_id = trainer.config.minerl_env_id
 
@@ -53,24 +58,35 @@ class Tester:
         self.representation_function.eval()
         self.dynamics_function.eval()
 
-        state = self.representation_function.embed(obs)
+        obs = torch.tensor(obs, device=self.device)
+        state = self.representation_function.embed(obs).squeeze()
         self.dynamics_env.set_all_states(state)
-        action = {}  # TODO
+        action = self.dynamics_env.action_space.sample()  # TODO FMC
 
         if force_no_escape:
             action["ESC"] = 0
 
-    def play_episode(self, min_steps: int, max_steps: int, render: bool = False):
+        return action
+
+    def play_episode(self, min_steps: int, max_steps: int, render: bool = False, smoke_test: bool = False):
         if self.env is None:
             raise ValueError("load_environment must be called first.")
 
-        obs = self.env.reset()
+        if smoke_test:
+            obs = np.random.uniform(size=(*AGENT_RESOLUTION, 3))
+        else:
+            obs = self.env.reset()
 
         for step in range(max_steps):
-
             action = self.get_action(obs, force_no_escape=step < min_steps)
 
-            obs, reward, done, info = self.env.step(action)
+            if smoke_test:
+                obs = np.random.uniform(size=(*AGENT_RESOLUTION, 3))
+                reward = 0
+                done = False
+                info = {}
+            else:
+                obs, reward, done, info = self.env.step(action)
 
             if render:
                 self.env.render()
@@ -83,4 +99,4 @@ class Tester:
 if __name__ == "__main__":
     tester = Tester("./train/xirl_zero/MineRLBasaltMakeWaterfall-v0/2022-10-28_02-52-40_PM")
     tester.load_environment()
-    tester.play_episode(min_steps=16, max_steps=64, render=False)
+    tester.play_episode(min_steps=16, max_steps=64, render=False, smoke_test=True)
