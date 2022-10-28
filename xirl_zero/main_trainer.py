@@ -1,4 +1,5 @@
 import torch
+from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 
 
 from xirl_zero.trainers.tcc_representation import TCCRepresentationTrainer
@@ -33,6 +34,8 @@ class Trainer:
         self.representation_trainer = TCCRepresentationTrainer()
         self.dynamics_trainer = MuZeroDynamicsTrainer()
 
+        self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(dataset_path)
+
     def train_step(self):
         # TODO: sample 2 trajectories for a pair
         t0, t1 = None, None  
@@ -45,3 +48,6 @@ class Trainer:
         # with the representation function's outputs, train the dyanmics function to lookahead
         self.dynamics_trainer.train_step(embedded_t0, t0_actions)
         self.dynamics_trainer.train_step(embedded_t1, t1_actions)
+
+    def eval_step(self):
+        pass
