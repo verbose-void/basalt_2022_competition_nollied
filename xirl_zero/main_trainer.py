@@ -16,6 +16,11 @@ from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig, MuZeroDynam
 class Config:
     dataset_path: str
 
+    train_steps: int
+    eval_every: int
+    eval_steps: int
+    checkpoint_every: int
+
     num_frame_samples: int = 128
 
     verbose: bool = True
@@ -31,7 +36,7 @@ class Config:
     dynamics_config: MuZeroDynamicsConfig = field(default_factory=MuZeroDynamicsConfig)
 
     def asdict(self):
-        d = self.__dict__
+        d = dict(self.__dict__)
 
         d.pop("representation_config")
         d.pop("dynamics_config")

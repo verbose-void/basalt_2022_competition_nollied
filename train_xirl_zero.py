@@ -1,52 +1,72 @@
 
 
+from warnings import warn
 import wandb
 from xirl_zero.main_trainer import Config, Trainer
 
 import torch
 
 
-SMOKE_TEST = True
 
+# TODO: determine based on task idx
+# DATASET_PATH = "/Volumes/CORSAIR/data/MineRLBasaltMakeWaterfall-v0"
+DATASET_PATH = "./data/MineRLBasaltMakeWaterfall-v0"
+
+OUTPUT_DIR = "./train/xirl_zero/"
+
+SMOKE_TEST = True
+USE_WANDB = False
+
+SMOKE_CONFIG = Config(
+    dataset_path=DATASET_PATH,
+    train_steps=5,
+    eval_every=1,
+    eval_steps=5,
+    checkpoint_every=1,
+    max_frames=10,
+    max_trajectories=10,
+    use_wandb=USE_WANDB,
+    model_log_frequency=1,
+)
+CONFIG = Config(
+    dataset_path=DATASET_PATH,
+    train_steps=10_000,
+    eval_every=100,
+    eval_steps=0,
+    checkpoint_every=100,
+    max_frames=None,
+    max_trajectories=None,
+    use_wandb=USE_WANDB,
+    model_log_frequency=1000,
+)
 
 if __name__ == "__main__":
-    # TODO: determine based on task idx
-    # dataset_path = "/Volumes/CORSAIR/data/MineRLBasaltMakeWaterfall-v0"
-    dataset_path = "./data/MineRLBasaltMakeWaterfall-v0"
+    config = SMOKE_CONFIG if SMOKE_TEST else CONFIG
 
-    output_dir = "./train/xirl_zero/"
-
-    config = Config(
-        dataset_path=dataset_path,
-        max_frames=10 if SMOKE_TEST else None,
-        max_trajectories=10 if SMOKE_TEST else None,
-        use_wandb=False,
-        model_log_frequency=1 if SMOKE_TEST else 1000,
-    )
+    if SMOKE_TEST:
+        warn("\n\n\n\n\n\nWARNING: DOING A SMOKE TEST!\n\n\n\n\n\n")
+    print("Using config:", config.asdict())
 
     if config.use_wandb:
         wandb.init(project="xirl_zero", config=config.asdict())
 
     trainer = Trainer(config)
 
-    def run_eval(steps: int):
-        for _ in range(steps):
+    def run_eval(config: Config):
+        for _ in range(config.eval_steps):
             trainer.eval_step()
 
-    def run_train(steps: int, eval_every: int, eval_steps: int):
-        for step in range(steps):
+    def run_train(config: Config):
+        for step in range(config.train_steps):
             trainer.train_step()
 
-            if (step + 1) % eval_every == 0 or step == (steps - 1):
-                run_eval(eval_steps)
-                trainer.checkpoint(output_dir)
-                _, target_state = trainer.generate_and_save_target_state(output_dir)
-                print(target_state)
+            is_last_step = step == (config.train_steps - 1)
 
-    train_steps = 5 if SMOKE_TEST else 10_000
-    eval_every = 1 if SMOKE_TEST else 100
-    eval_steps = 5 if SMOKE_TEST else 100
-    run_train(steps=train_steps, eval_every=eval_every, eval_steps=eval_steps)
+            if (step + 1) % config.eval_every == 0 or is_last_step:
+                run_eval(config)
 
-    # train_target_state = trainer.get_target_state()
-    # print(train_target_state)
+            if (step + 1) % config.checkpoint_every == 0 or is_last_step:
+                trainer.checkpoint(OUTPUT_DIR)
+                _, target_state = trainer.generate_and_save_target_state(OUTPUT_DIR)
+
+    run_train(config)
