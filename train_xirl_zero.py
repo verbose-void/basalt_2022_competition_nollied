@@ -21,16 +21,13 @@ if __name__ == "__main__":
         max_frames=10 if SMOKE_TEST else None,
         max_trajectories=10 if SMOKE_TEST else None,
         use_wandb=False,
+        model_log_frequency=1 if SMOKE_TEST else 1000,
     )
 
-    trainer = Trainer(config)
-
     if config.use_wandb:
-        wandb.init(project="xirl_zero", config={
-            "main_config": config.__dict__,
-            "representation_config": trainer.representation_trainer.config.__dict__,
-            "dynamics_config": trainer.dynamics_trainer.config.__dict__,
-        })
+        wandb.init(project="xirl_zero", config=config.__dict__)
+
+    trainer = Trainer(config)
 
     def run_eval(steps: int):
         for _ in range(steps):

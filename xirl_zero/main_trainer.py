@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict
 from gym import os
 import torch
@@ -9,7 +9,7 @@ import wandb
 
 from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTrainer
-from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsTrainer
+from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig, MuZeroDynamicsTrainer
 
 
 @dataclass
@@ -25,6 +25,11 @@ class Config:
     # used for smoke tests
     max_frames: int = None
     max_trajectories: int = None
+    model_log_frequency: int = 1000
+
+    representation_config: TCCConfig = field(default_factory=TCCConfig)
+    dynamics_config: MuZeroDynamicsConfig = field(default_factory=MuZeroDynamicsConfig)
+
 
 
 class Trainer:
@@ -54,8 +59,8 @@ class Trainer:
 
         self.config = config
 
-        self.representation_trainer = TCCRepresentationTrainer(TCCConfig())
-        self.dynamics_trainer = MuZeroDynamicsTrainer()
+        self.representation_trainer = TCCRepresentationTrainer(config.representation_config)
+        self.dynamics_trainer = MuZeroDynamicsTrainer(config.dynamics_config)
 
         self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path, max_trajectories=self.config.max_trajectories)
 
@@ -63,6 +68,11 @@ class Trainer:
 
         if self.config.use_wandb:
             self.run_name = wandb.run.name
+            wandb.watch(
+                (self.representation_trainer.model, self.dynamics_trainer.model),
+                log_freq=self.config.model_log_frequency,
+            )
+
         else:
             self.run_name = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
 

@@ -15,8 +15,8 @@ class MuZeroDynamicsConfig:
 
 class MuZeroDynamicsTrainer:
 
-    def __init__(self):
-        self.config = MuZeroDynamicsConfig()
+    def __init__(self, config: MuZeroDynamicsConfig):
+        self.config = config
 
         # TODO: use pretrained weights/steal architecture from the agent!
         self.model = DynamicsFunction(2048, button_features=32, camera_features=32).to(self.config.device)
