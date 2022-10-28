@@ -147,8 +147,12 @@ class ContiguousTrajectoryLoader:
         return read_frames_and_actions(t, num_frame_samples=num_frame_samples, max_frames=max_frames)
 
     @staticmethod
-    def get_train_and_eval_loaders(dataset_path: str, train_split: float=0.8):
+    def get_train_and_eval_loaders(dataset_path: str, train_split: float=0.8, max_trajectories: int = None):
         train_trajectories, eval_trajectories = get_trajectories(dataset_path, train_split=train_split)
+
+        if max_trajectories is not None:
+            train_trajectories = train_trajectories[:max_trajectories]
+            eval_trajectories = eval_trajectories[:max_trajectories]
 
         train_loader = ContiguousTrajectoryLoader(train_trajectories)
         eval_loader = ContiguousTrajectoryLoader(eval_trajectories)

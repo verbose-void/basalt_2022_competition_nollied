@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from typing import Dict
+from gym import os
 import torch
+
+from datetime import datetime
 
 import wandb
 
@@ -15,12 +18,13 @@ class Config:
 
     num_frame_samples: int = 128
 
-    # used for smoke tests
-    max_frames: int = None
-
     verbose: bool = True
 
-    use_wanbd: bool = False
+    use_wandb: bool = False
+
+    # used for smoke tests
+    max_frames: int = None
+    max_trajectories: int = None
 
 
 class Trainer:
@@ -53,9 +57,14 @@ class Trainer:
         self.representation_trainer = TCCRepresentationTrainer(TCCConfig())
         self.dynamics_trainer = MuZeroDynamicsTrainer()
 
-        self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path)
+        self.train_loader, self.eval_loader = ContiguousTrajectoryLoader.get_train_and_eval_loaders(config.dataset_path, max_trajectories=self.config.max_trajectories)
 
         self.train_steps_taken = 0
+
+        if self.config.use_wandb:
+            self.run_name = wandb.run.name
+        else:
+            self.run_name = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
 
     def sample(self, from_train: bool):
         # TODO: latency hide dataloading?
@@ -106,6 +115,7 @@ class Trainer:
         self.log(is_train=False, data_stats=data_stats, tcc_stats=tcc_stats, zero_stats=zero_stats)
 
     def get_target_state(self):
+        # TODO: use both train and eval data to generate the target state.
         return self.representation_trainer.generate_target_state(self.train_loader)
 
     def log(self, is_train: bool, data_stats: Dict, tcc_stats: Dict, zero_stats: Dict):
@@ -122,7 +132,7 @@ class Trainer:
             print("\nData Stats:")
             print(data_stats)
 
-        if self.config.use_wanbd and wandb.run is not None:
+        if self.config.use_wandb and wandb.run is not None:
             key = "train" if is_train else "eval"
 
             wandb.log({
@@ -131,3 +141,29 @@ class Trainer:
                 f"{key}/dynamics/": zero_stats,
                 f"{key}/data/": data_stats,
             })
+
+    def checkpoint(self, directory: str):
+        directory = os.path.join(directory, self.run_name, "checkpoints")
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, f"{self.train_steps_taken}.pth")
+
+        # these variables are not saveable, so remove them before saving, then restore.
+        train_loader = self.train_loader
+        eval_loader = self.eval_loader
+        self.train_loader = None
+        self.eval_loader = None
+
+        torch.save(self, path)
+
+        self.train_loader = train_loader
+        self.eval_loader = eval_loader
+
+        return path
+
+    def generate_and_save_target_state(self, directory: str):
+        directory = os.path.join(directory, self.run_name, "target_states")
+        os.makedirs(directory, exist_ok=True)
+        path = os.path.join(directory, f"{self.train_steps_taken}.pth")
+        target_state = self.get_target_state().cpu()
+        torch.save(target_state, path)
+        return path, target_state

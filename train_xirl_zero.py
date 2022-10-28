@@ -3,8 +3,10 @@
 import wandb
 from xirl_zero.main_trainer import Config, Trainer
 
+import torch
 
-SMOKE_TEST = False
+
+SMOKE_TEST = True
 
 
 if __name__ == "__main__":
@@ -12,15 +14,18 @@ if __name__ == "__main__":
     # dataset_path = "/Volumes/CORSAIR/data/MineRLBasaltMakeWaterfall-v0"
     dataset_path = "./data/MineRLBasaltMakeWaterfall-v0"
 
+    output_dir = "./train/xirl_zero/"
+
     config = Config(
         dataset_path=dataset_path,
         max_frames=10 if SMOKE_TEST else None,
-        use_wanbd=True,
+        max_trajectories=10 if SMOKE_TEST else None,
+        use_wandb=False,
     )
 
     trainer = Trainer(config)
 
-    if config.use_wanbd:
+    if config.use_wandb:
         wandb.init(project="xirl_zero", config={
             "main_config": config.__dict__,
             "representation_config": trainer.representation_trainer.config.__dict__,
@@ -35,17 +40,16 @@ if __name__ == "__main__":
         for step in range(steps):
             trainer.train_step()
 
-            if (step + 1) % eval_every == 0:
+            if (step + 1) % eval_every == 0 or step == (steps - 1):
                 run_eval(eval_steps)
+                trainer.checkpoint(output_dir)
+                _, target_state = trainer.generate_and_save_target_state(output_dir)
+                print(target_state)
 
-                # TODO: calculate target state and visualize in wandb.
-                # TODO: save models with the best evaluation performance.
-                # TODO: save the target embedding for the model with the best evaluation performance.
-
-    train_steps = 10_000
-    eval_every = 100
-    eval_steps = 10
+    train_steps = 5 if SMOKE_TEST else 10_000
+    eval_every = 1 if SMOKE_TEST else 100
+    eval_steps = 5 if SMOKE_TEST else 100
     run_train(steps=train_steps, eval_every=eval_every, eval_steps=eval_steps)
 
-    train_target_state = trainer.get_target_state()
-    print(train_target_state)
+    # train_target_state = trainer.get_target_state()
+    # print(train_target_state)
