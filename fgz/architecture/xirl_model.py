@@ -1,8 +1,7 @@
 
 from vpt.agent import MineRLAgent
-from fgz.architecture.dynamics_function import DynamicsFunction
+from xirl_zero.architecture.dynamics_function import DynamicsFunction
 
-from fgz.data_utils.xirl_data import MultiProcessXIRLDataHandler, XIRLDataHandler
 import torch
 from xirl_config import XIRLConfig
 

@@ -4,7 +4,7 @@ from typing import Sequence
 import torch
 import torch.nn.functional as F
 
-from fgz.architecture.dynamics_function import DynamicsFunction
+from xirl_zero.architecture.dynamics_function import DynamicsFunction
 
 
 @dataclass

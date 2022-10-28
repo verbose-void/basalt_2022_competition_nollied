@@ -16,7 +16,7 @@ from xirl_zero.trainers.tcc_representation import MINERL_DATA_ROOT, VPT_MODELS_R
 
 @dataclass
 class Config:
-    dataset_dir: str
+    minerl_env_id: str
 
     train_steps: int
     eval_every: int
@@ -39,7 +39,7 @@ class Config:
 
     @property
     def dataset_path(self):
-        return os.path.join(MINERL_DATA_ROOT, self.dataset_dir)
+        return os.path.join(MINERL_DATA_ROOT, self.minerl_env_id)
 
     def asdict(self):
         d = dict(self.__dict__)
@@ -185,6 +185,7 @@ class Trainer:
         self.eval_loader = None
 
         torch.save(self, path)
+        print(f"Saved checkpoint to {path}")
 
         self.train_loader = train_loader
         self.eval_loader = eval_loader
@@ -197,4 +198,5 @@ class Trainer:
         path = os.path.join(directory, f"{self.train_steps_taken}.pth")
         target_state = self.get_target_state().cpu()
         torch.save(target_state, path)
+        print(f"Saved target state to {path}")
         return path, target_state

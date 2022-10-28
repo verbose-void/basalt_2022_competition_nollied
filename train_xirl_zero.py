@@ -10,7 +10,7 @@ import torch
 # TODO: determine based on task idx
 # DATASET_PATH = "/Volumes/CORSAIR/data/MineRLBasaltMakeWaterfall-v0"
 # DATASET_PATH = "./data/MineRLBasaltMakeWaterfall-v0"
-DATASET_DIR = "MineRLBasaltMakeWaterfall-v0"
+MINERL_ENV_ID = "MineRLBasaltMakeWaterfall-v0"
 
 OUTPUT_DIR = "./train/xirl_zero/"
 
@@ -19,19 +19,19 @@ USE_WANDB = False
 
 # NOTE: a smoke test is basically a very fast run through the entire train script with the aim of catching runtime errors.
 SMOKE_TEST_CONFIG = Config(
-    dataset_dir=DATASET_DIR,
-    train_steps=5,
+    minerl_env_id=MINERL_ENV_ID,
+    train_steps=2,
     eval_every=1,
-    eval_steps=5,
+    eval_steps=2,
     checkpoint_every=1,
-    max_frames=10,
-    max_trajectories=10,
+    max_frames=8,
+    max_trajectories=8,
     use_wandb=USE_WANDB,
     model_log_frequency=1,
 )
 
 CONFIG = Config(
-    dataset_dir=DATASET_DIR,
+    minerl_env_id=MINERL_ENV_ID,
     train_steps=10_000,
     eval_every=100,
     eval_steps=0,
