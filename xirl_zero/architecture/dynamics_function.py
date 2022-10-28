@@ -163,13 +163,12 @@ class MineRLDynamicsEnvironment(VectorizedEnvironment):
         # don't forward frozen states, frozen state's confusions are 0.
         self.states[freeze_mask != 1] = new_states[freeze_mask != 1]
 
-        raise NotImplementedError("TODO: inverse distance reward")
+        # inverse l2 distance between the current states and the target states are the rewards
+        rewards = -torch.norm(self.states[:] - self.target_state, dim=1)
 
         obs = self.states
         dones = torch.zeros(self.n).bool()
-        # infos = [{} for _ in range(len(self.states))]
-
-        infos = discrim_logits
+        infos = [{} for _ in range(len(self.states))]
 
         return self.states, obs, rewards, dones, infos
 

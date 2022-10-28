@@ -10,6 +10,7 @@ from vpt.agent import AGENT_RESOLUTION
 
 from xirl_zero.main_trainer import Trainer
 from xirl_zero.architecture.dynamics_function import MineRLDynamicsEnvironment
+from tqdm import tqdm
 
 
 class Tester:
@@ -49,11 +50,14 @@ class Tester:
         if actual_env_id != self.minerl_env_id:
             raise ValueError(f"Cross-task testing is not recommended. The actual env ID loaded was {actual_env_id}, but we expected {self.minerl_env_id}.")
 
+        num_walkers = 16
+
         self.env = env
         self.dynamics_env = MineRLDynamicsEnvironment(
-            self.env.action_space, 
+            self.env.action_space,
             self.dynamics_function, 
             self.target_state,
+            n=num_walkers,
         )
 
         self.fmc = FMC(self.dynamics_env)
@@ -68,16 +72,21 @@ class Tester:
 
         # action = self.dynamics_env.action_space.sample()  # TODO FMC
         self.fmc.simulate(16)
-        tree_sampler = TreeSampler(self.fmc.tree, sample_type="best_path")
-        observations, actions, _, confusions, infos = tree_sampler.get_batch()
-        action = actions[0]
+        action = self.fmc.tree.best_path.first_action
 
         if force_no_escape:
             action["ESC"] = 0
 
         return action
 
-    def play_episode(self, min_steps: int, max_steps: int, render: bool = False, smoke_test: bool = False):
+    def play_episode(
+        self, 
+        min_steps: int, 
+        max_steps: int, 
+        render: bool = False, 
+        smoke_test: bool = False, 
+        use_tqdm: bool = True,
+    ):
         if self.env is None:
             raise ValueError("load_environment must be called first.")
 
@@ -86,7 +95,7 @@ class Tester:
         else:
             obs = self.env.reset()
 
-        for step in range(max_steps):
+        for step in tqdm(range(max_steps), desc=f"Playing {self.minerl_env_id} Episode", disable=not use_tqdm):
             action = self.get_action(obs, force_no_escape=step < min_steps)
 
             if smoke_test:
@@ -96,6 +105,8 @@ class Tester:
                 info = {}
             else:
                 obs, reward, done, info = self.env.step(action)
+
+            # TODO: optionally save video
 
             if render:
                 self.env.render()

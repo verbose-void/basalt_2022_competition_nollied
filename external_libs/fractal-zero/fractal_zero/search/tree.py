@@ -123,6 +123,11 @@ class Path:
         return self.ordered_states[-1]
 
     @property
+    def first_action(self):
+        u, v = self.ordered_states[0], self.ordered_states[1]
+        return self.get_action_between(u, v)
+
+    @property
     def last_action(self):
         if len(self.ordered_states) < 2:
             return None
