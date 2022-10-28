@@ -59,7 +59,7 @@ class Trainer:
 
         # train the representation function on it's own
         # TODO: should we give the representation function a head-start?
-        embedded_t0, embedded_t1 = self.representation_trainer.train_step(t0, t1)
+        tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.train_step(t0, t1)
 
         # with the representation function's outputs, train the dyanmics function to lookahead
         self.dynamics_trainer.train_step(embedded_t0, t0_actions)

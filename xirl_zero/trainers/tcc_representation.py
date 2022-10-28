@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -78,7 +78,7 @@ class TCCRepresentationTrainer:
 
         return embedded.float()
 
-    def calculate_tcc_loss(
+    def _calculate_temporal_cycle_consistency(
         self, 
         embedded_t0: torch.Tensor, 
         embedded_t1: torch.Tensor, 
@@ -118,27 +118,23 @@ class TCCRepresentationTrainer:
             index_logits.append(beta)
 
         index_preds = torch.stack(index_preds)
+        index_logits = torch.stack(index_logits)
+        cross_entropy_labels = chosen_frame_indices.long()
+        
+        stats = {
+            "normalized_mse": F.mse_loss(index_preds / max_index, chosen_frame_indices / max_index),
+            "unnormalized_mse": F.mse_loss(index_preds, chosen_frame_indices),
+            "cross_entropy": F.cross_entropy(index_logits, cross_entropy_labels), # / torch.log(torch.tensor(max_index))
+        }
 
-        # mse version
-        # unnormalized_mse = F.mse_loss(index_preds, chosen_frame_indices)
-        normalized_mse = F.mse_loss(index_preds / max_index, chosen_frame_indices / max_index)
-
-        # cross entropy version
-        # index_logits = torch.stack(index_logits)
-        # cross_entropy_labels = chosen_frame_indices.long()
-        # ce_loss = F.cross_entropy(index_logits, cross_entropy_labels) / torch.log(torch.tensor(max_index))
-
-        return normalized_mse
+        return stats
 
     def choose_random_frames(self, max_index: int):
         return torch.randint(
             low=0, high=max_index, size=(self.config.batch_size,)
         )
 
-    def train_step(self, t0: torch.Tensor, t1: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """The representation function is trained using Temporal Cycle-Consistency (https://arxiv.org/pdf/1904.07846.pdf) 
-        loss over a subset of the frames in a pair of demonstration trajectories.
-        """
+    def _calculate_loss(self, t0: torch.Tensor, t1: torch.Tensor, with_gradient: bool) -> Tuple[Dict, torch.Tensor, torch.Tensor]:
 
         with torch.no_grad():
             embedded_t0 = self.embed_trajectory(t0)
@@ -146,10 +142,41 @@ class TCCRepresentationTrainer:
 
         chosen_frame_indices = self.choose_random_frames(len(embedded_t0))
 
-        # embed chosen frames again, but this time with gradients
-        embedded_chosen_frames = self.model.embed(t0[chosen_frame_indices].to(self.config.device))
+        if with_gradient:
+            # embed chosen frames again, but this time with gradients
+            embedded_chosen_frames = self.model.embed(t0[chosen_frame_indices].to(self.config.device))
+        else:
+            # don't embed again, no need to calculate gradients
+            embedded_chosen_frames = embedded_t0[chosen_frame_indices]
 
-        loss = self.calculate_tcc_loss(embedded_t0, embedded_t1, chosen_frame_indices.to(self.config.device), embedded_chosen_frames)
-        print(loss)
+        def _execute():
+            return self._calculate_temporal_cycle_consistency(
+                embedded_t0, 
+                embedded_t1, 
+                chosen_frame_indices.to(self.config.device),
+                embedded_chosen_frames,
+            )
 
-        return embedded_t0, embedded_t1
+        if with_gradient:
+            stats = _execute()
+        else:
+            with torch.no_grad():
+                stats = _execute()
+
+        return stats, embedded_t0, embedded_t1
+
+    def train_step(self, t0: torch.Tensor, t1: torch.Tensor) -> Tuple[Dict, torch.Tensor, torch.Tensor]:
+        """The representation function is trained using Temporal Cycle-Consistency (https://arxiv.org/pdf/1904.07846.pdf) 
+        loss over a subset of the frames in a pair of demonstration trajectories.
+        """
+
+        self.optimizer.zero_grad()
+
+        stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=True)
+
+        loss = stats["normalized_mse"]
+
+        loss.backward()
+        self.optimizer.step()
+
+        return stats, embedded_t0, embedded_t1
