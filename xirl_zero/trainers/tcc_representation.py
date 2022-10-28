@@ -170,6 +170,7 @@ class TCCRepresentationTrainer:
         loss over a subset of the frames in a pair of demonstration trajectories.
         """
 
+        self.model.train()
         self.optimizer.zero_grad()
 
         stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=True)
@@ -183,5 +184,6 @@ class TCCRepresentationTrainer:
 
     @torch.no_grad()
     def eval_step(self, t0: torch.Tensor, t1: torch.Tensor):
+        self.model.eval()
         stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=False)
         return stats, embedded_t0, embedded_t1
