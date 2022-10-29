@@ -34,6 +34,8 @@ class TCCConfig:
     batch_size: int = 32        # gradients
     embed_batch_size: int = 32  # no gradients
 
+    reverse_too: bool = True
+
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     @property
@@ -178,7 +180,7 @@ class TCCRepresentationTrainer:
 
         self.model.train()
         self.optimizer.zero_grad()
-
+    
         stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=True)
 
         loss = stats["normalized_mse"]

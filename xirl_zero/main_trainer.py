@@ -134,7 +134,15 @@ class Trainer:
 
         # train the representation function on it's own
         # TODO: should we give the representation function a head-start?
-        tcc_stats, embedded_t0, embedded_t1 = self.representation_trainer.train_step(t0, t1)
+        tcc_stats, embedded_t0, embedded_t1                      = self.representation_trainer.train_step(t0, t1)
+
+        if self.representation_trainer.config.reverse_too:
+            tcc_stats1, embedded_t1, embedded_t0 = self.representation_trainer.train_step(t1, t0)
+            
+            # average all stats
+            for k, v in tcc_stats1.items():
+                v0 = tcc_stats[k]
+                tcc_stats[k] = (v + v0) / 2
 
         # with the representation function's outputs, train the dyanmics function to lookahead
         # TODO: should we latency hide the dynamics function training?

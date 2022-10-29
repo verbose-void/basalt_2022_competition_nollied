@@ -53,8 +53,8 @@ CONFIG = Config(
     num_frame_samples=128,
     representation_config=TCCConfig(
         learning_rate=0.000181,
-        batch_size=64,
-        embed_batch_size=64,
+        batch_size=32,
+        embed_batch_size=128,
         num_unfrozen_layers=4,  # number of embedder layers to have gradients
     ),
     dynamics_config=MuZeroDynamicsConfig(),
