@@ -68,32 +68,49 @@ class DynamicsFMC:
 
         self._simulate()
 
-        raise NotImplementedError
+        scores = self._get_scores()
+        best_walker = torch.argmax(scores)
+        actions = self.action_history[:, best_walker]
+        return actions
 
     def _perturbate(self):
         button_vecs, camera_vecs = self.sample_actions()
         new_states = self.dynamics_function.forward(self.states, button_vecs, camera_vecs)
+        self.states = new_states
 
-        print(new_states.shape)
+    def _get_scores(self):
+        return -torch.norm(self.states[:] - self.target_state, dim=1)
 
     def _clone(self):
         # scores are inverse l2 distance to the target state.
-        scores = -torch.norm(self.states[:] - self.target_state, dim=1)
+        scores = self._get_scores()
 
         partners = torch.randint(low=0, high=self.num_walkers, size=(self.num_walkers,), device=self.device)
         walker_distances = 1 - F.cosine_similarity(self.states, self.states[partners], dim=-1)
 
         rel_scores = _relativize_vector(scores)
         rel_distances = _relativize_vector(walker_distances)
-
         virtual_rewards = rel_scores ** self.balance * rel_distances
-        print(virtual_rewards)
 
+        # calculate the clone mask
+        vr = virtual_rewards
+        pair_vr = virtual_rewards[partners]
+        value = (pair_vr - vr) / torch.where(vr > 0, vr, 1e-8)
+        clone_mask = (value >= torch.rand(1)).bool()
+
+        np_clone_mask = clone_mask.cpu().numpy()
+        np_partners = partners.cpu().numpy()
+
+        # execute cloning
+        self.states[clone_mask] = self.states[partners[clone_mask]]
+        self.action_history[:, np_clone_mask] = self.action_history[:, np_partners[np_clone_mask]]
+
+    @torch.no_grad()
     def _simulate(self):
         for self.step in range(self.steps):
             self._perturbate()
             self._clone()
-    
+
 
 if __name__ == "__main__":
     dynamics = DynamicsFunction()
