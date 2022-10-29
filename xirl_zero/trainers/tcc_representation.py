@@ -25,8 +25,11 @@ class TCCConfig:
     weights_filename: str = "rl-from-early-game-2x.weights"
 
     learning_rate: float = 0.001
-
     temperature: float = 0.1
+
+    # the number of unfrozen modules in the representation model.
+    # https://analyticsindiamag.com/what-does-freezing-a-layer-mean-and-how-does-it-help-in-fine-tuning-neural-networks/
+    num_unfrozen_layers: int = 4  
 
     batch_size: int = 32        # gradients
     embed_batch_size: int = 32  # no gradients
@@ -47,7 +50,8 @@ class TCCRepresentationTrainer:
         self.config = config
 
         self.model = XIRLModel(self.config, config.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5, betas=(0.99, 0.999))
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=0, betas=(0.9, 0.999))
+        # self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5, betas=(0.99, 0.999))
 
     def soft_nearest_neighbor(
         self, frame_embedding: torch.Tensor,

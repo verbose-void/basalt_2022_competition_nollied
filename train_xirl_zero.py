@@ -33,6 +33,10 @@ SMOKE_TEST_CONFIG = Config(
     model_log_frequency=1,
     num_frame_samples=8,
     verbose=True,
+
+    representation_config=TCCConfig(
+        num_unfrozen_layers=4,  # number of embedder layers to have gradients
+    ),
 )
 
 CONFIG = Config(
@@ -44,8 +48,15 @@ CONFIG = Config(
     max_frames=None,
     max_trajectories=None,
     use_wandb=USE_WANDB,
-    model_log_frequency=1000,
-    representation_config=TCCConfig(),
+    model_log_frequency=10,
+
+    num_frame_samples=128,
+    representation_config=TCCConfig(
+        learning_rate=0.000181,
+        batch_size=64,
+        embed_batch_size=64,
+        num_unfrozen_layers=4,  # number of embedder layers to have gradients
+    ),
     dynamics_config=MuZeroDynamicsConfig(),
 )
 

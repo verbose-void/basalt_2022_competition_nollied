@@ -7,6 +7,8 @@ from datetime import datetime
 
 import wandb
 
+import time
+
 from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTrainer
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig, MuZeroDynamicsTrainer
@@ -105,9 +107,13 @@ class Trainer:
 
         loader = self.train_loader if from_train else self.eval_loader
 
+        start = time.time()
+
         kwargs = {"num_frame_samples": self.config.num_frame_samples, "max_frames": self.config.max_frames}
         t0, t0_actions = loader.sample(**kwargs)
         t1, t1_actions = loader.sample(**kwargs)
+
+        self.time_to_load_data = time.time() - start
 
         return t0, t0_actions, t1, t1_actions
 
@@ -120,6 +126,7 @@ class Trainer:
         return {
             "total_frames": len(t0) + len(t1),
             "total_actions": atotal,
+            "load_seconds": self.time_to_load_data,
         }
 
     def train_step(self):

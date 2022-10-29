@@ -21,6 +21,15 @@ class XIRLModel(torch.nn.Module):
         self.img_preprocess = agent.policy.net.img_preprocess
         self.img_process = agent.policy.net.img_process
 
+        params = list(self.parameters())
+        num_unfrozen = config.num_unfrozen_layers
+        c = 0
+        for param in reversed(params):
+            if c >= num_unfrozen:
+                param.requires_grad = False
+            c += 1
+        print(f"Unfrozen: {num_unfrozen}/{c}")
+
     def prepare_observation(self, minerl_obs):
         agent_input = resize_image(minerl_obs["pov"], AGENT_RESOLUTION)[None]
         img = torch.from_numpy(agent_input)
