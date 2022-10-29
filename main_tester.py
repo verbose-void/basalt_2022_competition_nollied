@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 import os
 from fractal_zero.data.tree_sampler import TreeSampler
 from fractal_zero.search.fmc import FMC
@@ -139,7 +140,24 @@ class Tester:
 
         self.env.close()
 
+
 if __name__ == "__main__":
-    tester = Tester("./train/xirl_zero/MineRLBasaltMakeWaterfall-v0/2022-10-28_02-52-40_PM")
+    parser = ArgumentParser()
+
+    parser.add_argument("--experiment-directory", type=str)
+    parser.add_argument("--min-steps", type=int, default=16)
+    parser.add_argument("--max-steps", type=int, default=64)
+
+    parser.add_argument("--smoke-test", action="store_true")
+    parser.add_argument("--save-video", action="store_true")
+    parser.add_argument("--render", action="store_true")
+
+    args = dict(parser.parse_args().__dict__)
+    
+    # tester = Tester("./train/xirl_zero/MineRLBasaltMakeWaterfall-v0/2022-10-28_02-52-40_PM")
+
+    experiment_dir = args.pop("experiment_directory")
+    tester = Tester(experiment_dir)
+
     tester.load_environment()
-    tester.play_episode(min_steps=16, max_steps=64, render=False, smoke_test=True, save_video=True)
+    tester.play_episode(**args)
