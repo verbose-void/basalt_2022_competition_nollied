@@ -5,6 +5,9 @@ import wandb
 from xirl_zero.main_trainer import Config, Trainer
 
 import torch
+from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig
+
+from xirl_zero.trainers.tcc_representation import TCCConfig
 
 
 # TODO: determine based on task idx
@@ -14,8 +17,8 @@ MINERL_ENV_ID = "MineRLBasaltMakeWaterfall-v0"
 
 OUTPUT_DIR = f"./train/xirl_zero/{MINERL_ENV_ID}"
 
-SMOKE_TEST = True
-USE_WANDB = False
+SMOKE_TEST = False
+USE_WANDB = True
 
 # NOTE: a smoke test is basically a very fast run through the entire train script with the aim of catching runtime errors.
 SMOKE_TEST_CONFIG = Config(
@@ -42,6 +45,8 @@ CONFIG = Config(
     max_trajectories=None,
     use_wandb=USE_WANDB,
     model_log_frequency=1000,
+    representation_config=TCCConfig(),
+    dynamics_config=MuZeroDynamicsConfig(),
 )
 
 if __name__ == "__main__":
@@ -52,7 +57,10 @@ if __name__ == "__main__":
     print("Using config:", config.asdict())
 
     if config.use_wandb:
-        wandb.init(project="xirl_zero", config=config.asdict())
+        project = f"xirl_zero_{MINERL_ENV_ID}"
+        if SMOKE_TEST:
+            project += "_smoke"
+        wandb.init(project=project, config=config.asdict())
 
     trainer = Trainer(config)
 

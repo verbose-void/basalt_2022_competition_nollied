@@ -105,7 +105,7 @@ class DynamicsFunction(torch.nn.Module):
         return new_state
 
     def forward_action(
-        self, state_embedding: torch.Tensor, action, use_discrim: bool = True
+        self, state_embedding: torch.Tensor, action
     ):
         button_vec, camera_vec = vectorize_minerl_action(action)
 
@@ -114,7 +114,7 @@ class DynamicsFunction(torch.nn.Module):
         camera_vec = camera_vec.unsqueeze(0).to(device)
 
         return self.forward(
-            state_embedding, button_vec, camera_vec, use_discrim=use_discrim
+            state_embedding, button_vec, camera_vec
         )
 
 

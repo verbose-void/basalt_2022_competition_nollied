@@ -46,7 +46,7 @@ class MuZeroDynamicsTrainer:
 
             embedding = start_embedding.unsqueeze(0).to(self.config.device)
             for action in actions_between:
-                embedding = self.model.forward_action(embedding, action, use_discrim=False)
+                embedding = self.model.forward_action(embedding, action)
                 between_loss += F.mse_loss(embedding, target_embedding)
             total_loss += between_loss / len(actions_between)
 
