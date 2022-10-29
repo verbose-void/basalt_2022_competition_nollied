@@ -49,19 +49,7 @@ CONFIG = Config(
     dynamics_config=MuZeroDynamicsConfig(),
 )
 
-if __name__ == "__main__":
-    config = SMOKE_TEST_CONFIG if SMOKE_TEST else CONFIG
-
-    if SMOKE_TEST:
-        warn("\n\n\n\n\n\nWARNING: DOING A SMOKE TEST!\n\n\n\n\n\n")
-    print("Using config:", config.asdict())
-
-    if config.use_wandb:
-        project = f"xirl_zero_{MINERL_ENV_ID}"
-        if SMOKE_TEST:
-            project += "_smoke"
-        wandb.init(project=project, config=config.asdict())
-
+def run_train_loop(config: Config):
     trainer = Trainer(config)
 
     def run_eval(config: Config):
@@ -81,4 +69,19 @@ if __name__ == "__main__":
                 trainer.checkpoint(OUTPUT_DIR)
                 _, target_state = trainer.generate_and_save_target_state(OUTPUT_DIR)
 
+    print("\n\n\n\nTraining with config:", config.asdict(), "\n\n\n\n")
     run_train(config)
+
+if __name__ == "__main__":
+    config = SMOKE_TEST_CONFIG if SMOKE_TEST else CONFIG
+
+    if SMOKE_TEST:
+        warn("\n\n\n\n\n\nWARNING: DOING A SMOKE TEST!\n\n\n\n\n\n")
+
+    if config.use_wandb:
+        project = f"xirl_zero_{MINERL_ENV_ID}"
+        if SMOKE_TEST:
+            project += "_smoke"
+        wandb.init(project=project, config=config.asdict())
+
+    run_train_loop(config)
