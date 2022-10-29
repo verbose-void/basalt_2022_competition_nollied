@@ -1,5 +1,5 @@
 
-from vpt.agent import MineRLAgent
+from vpt.agent import AGENT_RESOLUTION, MineRLAgent, resize_image
 from xirl_zero.architecture.dynamics_function import DynamicsFunction
 
 import torch
@@ -14,11 +14,17 @@ class XIRLModel(torch.nn.Module):
         super().__init__()
 
         self.config = config
+        self.device = device
 
         agent = load_agent(config.model_path, config.weights_path, device=device)
 
         self.img_preprocess = agent.policy.net.img_preprocess
         self.img_process = agent.policy.net.img_process
+
+    def prepare_observation(self, minerl_obs):
+        agent_input = resize_image(minerl_obs["pov"], AGENT_RESOLUTION)[None]
+        img = torch.from_numpy(agent_input)
+        return img
 
     def embed(self, frames):
         if frames.dim() == 3:

@@ -1,5 +1,7 @@
 from xirl_zero.main_trainer import Config
 from train_xirl_zero import run_train_loop
+from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig
+from xirl_zero.trainers.tcc_representation import TCCConfig
 
 
 EVAL_STEPS = 0  # no eval (?)
@@ -13,6 +15,8 @@ WATERFALL_CONFIG = Config(
     eval_steps=EVAL_STEPS,
     checkpoint_every=10,  # TODO
     use_wandb=USE_WANDB,
+    representation_config=TCCConfig(),
+    dynamics_config=MuZeroDynamicsConfig(),
 )
 
 
@@ -23,6 +27,8 @@ CAVE_CONFIG = Config(
     eval_steps=EVAL_STEPS,
     checkpoint_every=10,  # TODO
     use_wandb=USE_WANDB,
+    representation_config=TCCConfig(),
+    dynamics_config=MuZeroDynamicsConfig(),
 )
 
 
@@ -33,6 +39,8 @@ ANIMAL_PEN_CONFIG = Config(
     eval_steps=EVAL_STEPS,
     checkpoint_every=10,  # TODO
     use_wandb=USE_WANDB,
+    representation_config=TCCConfig(),
+    dynamics_config=MuZeroDynamicsConfig(),
 )
 
 
@@ -43,6 +51,8 @@ HOUSE_CONFIG = Config(
     eval_steps=EVAL_STEPS,
     checkpoint_every=10,  # TODO
     use_wandb=USE_WANDB,
+    representation_config=TCCConfig(),
+    dynamics_config=MuZeroDynamicsConfig(),
 )
 
 
