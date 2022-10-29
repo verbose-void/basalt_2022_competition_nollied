@@ -55,7 +55,7 @@ CONFIG = Config(
         learning_rate=0.000181,
         batch_size=32,
         embed_batch_size=128,
-        num_unfrozen_layers=4,  # number of embedder layers to have gradients
+        num_unfrozen_layers=8,  # number of embedder layers to have gradients
     ),
     dynamics_config=MuZeroDynamicsConfig(),
 )
