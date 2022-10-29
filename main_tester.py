@@ -45,6 +45,8 @@ class Tester:
         self.dynamics_function = trainer.dynamics_trainer.model
         self.target_state = target_state
 
+        self.new_video_paths = []
+
     def load_environment(self, env: gym.Env=None):
         if env is None:
             env = gym.make(self.minerl_env_id)
@@ -107,6 +109,8 @@ class Tester:
             resolution = AGENT_RESOLUTION if smoke_test else (640, 360)
             video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, resolution)
             print(f"Saving video at {video_path}")
+            
+            self.new_video_paths.append(video_path)
 
         for step in tqdm(range(max_steps), desc=f"Playing {self.minerl_env_id} Episode", disable=not use_tqdm):
             action = self.get_action(obs, force_no_escape=step < min_steps)
