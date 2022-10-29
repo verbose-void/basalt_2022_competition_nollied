@@ -16,6 +16,8 @@ from xirl_zero.main_trainer import Trainer, now_filename
 from xirl_zero.architecture.dynamics_function import DynamicsFunction, MineRLDynamicsEnvironment
 from tqdm import tqdm
 
+from xirl_zero.search.dynamics_fmc import DynamicsFMC
+
 class Tester:
     env: gym.Env = None
     representation_function: XIRLModel
@@ -30,6 +32,7 @@ class Tester:
         if iteration is None:
             iterations = [int(fn.split(".")[0]) for fn in os.listdir(checkpoint_dir)]
             iteration = max(iterations)
+        self.iteration = iteration
         
         fn = f"{iteration}.pth"
         checkpoint_path = os.path.join(checkpoint_dir, fn)
@@ -59,51 +62,36 @@ class Tester:
         if actual_env_id != self.minerl_env_id:
             raise ValueError(f"Cross-task testing is not recommended. The actual env ID loaded was {actual_env_id}, but we expected {self.minerl_env_id}.")
 
-        num_walkers = 256
-
         self.env = env
-        self.dynamics_env = MineRLDynamicsEnvironment(
-            self.env.action_space,
-            self.dynamics_function, 
-            self.target_state,
-            n=num_walkers,
-        )
-
-        self.fmc = FMC(self.dynamics_env, reward_is_score=True, balance=3)
 
     def get_action(self, obs, force_no_escape: bool):
         self.representation_function.eval()
         self.dynamics_function.eval()
 
-        self.fmc.reset()
-
         # x = torch.tensor(obs["pov"], device=self.device)
         x = self.representation_function.prepare_observation(obs).to(self.device)
         state = self.representation_function.embed(x).squeeze()
-        self.dynamics_env.set_all_states(state)
 
-        self.fmc.simulate(128, use_tqdm=True)
+        fmc = DynamicsFMC(
+            self.dynamics_function, 
+            self.target_state, 
+            self.env.action_space,
+            num_walkers=512,
+            steps=128,
+            balance=3.0,
+        )
 
-        best_path = self.fmc.tree.best_path
-        # action = best_path.first_action
+        actions = fmc.get_actions(state)
 
-        actions = []
-        for state, action in best_path:
+        action_percent = 0.5
+        max_action_index = max(1, int(np.ceil(len(actions) * action_percent)))
+        print("total actions", len(actions), "max", max_action_index)
+
+        actions = actions[:max_action_index].flatten().tolist()
+
+        for action in actions:
             if force_no_escape:
                 action["ESC"] = 0
-            actions.append(action)
-
-        distance_to_target = best_path.ordered_states[1].reward
-        average_distance_to_target = best_path.average_reward
-
-        # TODO: if current state embedding is within a certain threshold of the target state, force ESC action.
-        # print(action)
-        print(len(best_path.ordered_states))
-        print(len(actions), "actions")
-        print(distance_to_target, average_distance_to_target)
-        print("\n\n")
-
-        assert len(actions) > 0
 
         return actions
 
@@ -127,13 +115,15 @@ class Tester:
         if save_video:
             video_dir = os.path.join(self.path_to_experiment, "videos")
             os.makedirs(video_dir, exist_ok=True)
-            video_path = os.path.join(video_dir, f"{now_filename()}.mp4")
+            video_path = os.path.join(video_dir, f"{self.iteration}___{now_filename()}.mp4")
 
             resolution = AGENT_RESOLUTION if smoke_test else (640, 360)
             video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, resolution)
             print(f"Saving video at {video_path}")
             
             self.new_video_paths.append(video_path)
+
+        self.play_step = 0
 
         def _after_step():
             if save_video:
@@ -147,8 +137,11 @@ class Tester:
             if render:
                 self.env.render()
 
-        for step in tqdm(range(max_steps), desc=f"Playing {self.minerl_env_id} Episode", disable=not use_tqdm):
-            actions = self.get_action(obs, force_no_escape=step < min_steps)
+            self.play_step += 1
+
+        # for step in tqdm(range(max_steps), desc=f"Playing {self.minerl_env_id} Episode", disable=not use_tqdm):
+        while True:
+            actions = self.get_action(obs, force_no_escape=self.play_step < min_steps)
 
             if smoke_test:
                 obs = np.random.uniform(size=(*AGENT_RESOLUTION, 3))
@@ -166,7 +159,7 @@ class Tester:
                     if done:
                         break
                 
-            if done:
+            if done or self.play_step >= max_steps:
                 break
 
         self.env.close()
