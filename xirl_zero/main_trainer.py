@@ -14,6 +14,9 @@ from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig, MuZeroDynam
 from xirl_zero.trainers.tcc_representation import MINERL_DATA_ROOT, VPT_MODELS_ROOT
 
 
+def now_filename():
+    return datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
+
 @dataclass
 class Config:
     minerl_env_id: str
@@ -95,7 +98,7 @@ class Trainer:
             )
 
         else:
-            self.run_name = datetime.now().strftime("%Y-%m-%d_%I-%M-%S_%p")
+            self.run_name = now_filename()
 
     def sample(self, from_train: bool):
         # TODO: latency hide dataloading?

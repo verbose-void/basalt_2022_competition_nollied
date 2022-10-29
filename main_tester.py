@@ -2,21 +2,24 @@ import os
 from fractal_zero.data.tree_sampler import TreeSampler
 from fractal_zero.search.fmc import FMC
 
+import minerl
 import gym
 
+import cv2
 import torch
 import numpy as np
 from vpt.agent import AGENT_RESOLUTION
 
-from xirl_zero.main_trainer import Trainer
+from xirl_zero.main_trainer import Trainer, now_filename
 from xirl_zero.architecture.dynamics_function import MineRLDynamicsEnvironment
 from tqdm import tqdm
-
 
 class Tester:
     env: gym.Env = None
 
     def __init__(self, path_to_experiment: str, iteration: int=None, device=None):
+        self.path_to_experiment = path_to_experiment
+        
         checkpoint_dir = os.path.join(path_to_experiment, "checkpoints")
 
         # default pick the last iteration
@@ -86,6 +89,7 @@ class Tester:
         render: bool = False, 
         smoke_test: bool = False, 
         use_tqdm: bool = True,
+        save_video: bool = False,
     ):
         if self.env is None:
             raise ValueError("load_environment must be called first.")
@@ -94,6 +98,15 @@ class Tester:
             obs = np.random.uniform(size=(*AGENT_RESOLUTION, 3))
         else:
             obs = self.env.reset()
+
+        if save_video:
+            video_dir = os.path.join(self.path_to_experiment, "videos")
+            os.makedirs(video_dir, exist_ok=True)
+            video_path = os.path.join(video_dir, f"{now_filename()}.mp4")
+
+            resolution = AGENT_RESOLUTION if smoke_test else (640, 360)
+            video_recorder = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), 20, resolution)
+            print(f"Saving video at {video_path}")
 
         for step in tqdm(range(max_steps), desc=f"Playing {self.minerl_env_id} Episode", disable=not use_tqdm):
             action = self.get_action(obs, force_no_escape=step < min_steps)
@@ -106,7 +119,13 @@ class Tester:
             else:
                 obs, reward, done, info = self.env.step(action)
 
-            # TODO: optionally save video
+            if save_video:
+                if smoke_test:
+                    frame = obs[..., ::-1].astype(np.uint8)
+                else:
+                    frame = obs["pov"][..., ::-1]
+
+                video_recorder.write(frame)
 
             if render:
                 self.env.render()
@@ -119,4 +138,4 @@ class Tester:
 if __name__ == "__main__":
     tester = Tester("./train/xirl_zero/MineRLBasaltMakeWaterfall-v0/2022-10-28_02-52-40_PM")
     tester.load_environment()
-    tester.play_episode(min_steps=16, max_steps=64, render=False, smoke_test=True)
+    tester.play_episode(min_steps=16, max_steps=64, render=False, smoke_test=True, save_video=True)
