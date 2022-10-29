@@ -128,11 +128,15 @@ class TCCRepresentationTrainer:
         index_preds = torch.stack(index_preds)
         index_logits = torch.stack(index_logits)
         cross_entropy_labels = chosen_frame_indices.long()
+
+        correct = (index_logits.argmax(-1).long() == cross_entropy_labels).sum()
+        index_accuracy = correct / bs
         
         stats = {
             "normalized_mse": F.mse_loss(index_preds / max_index, chosen_frame_indices / max_index),
             "unnormalized_mse": F.mse_loss(index_preds, chosen_frame_indices),
             "cross_entropy": F.cross_entropy(index_logits, cross_entropy_labels), # / torch.log(torch.tensor(max_index))
+            "index_accuracy": index_accuracy,
         }
 
         return stats
