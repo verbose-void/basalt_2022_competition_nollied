@@ -21,7 +21,7 @@ FMC (and many other RES methods) use a population of "walkers" which are essenti
 
 It's key distinction between many RES methods and MCTS is the usage of a contrastive orientation method. They calculate something called "virtual rewards" which is a composite function of 2 "relativized" vectors (see the function below). 
 1. The first of these vectors represents exploit (it's the score of a trajectory -- which could be the sum of previous accumulated rewards or the average reward accumulated, etc.). You can also think of a "score" as a value function, although in my case I don't use one, but it's supposed to play the same role.
-2. The second vector representents explore. This is where the contrastive measure is used. The basic way this explore vector is calculated is by having each walker randomly paired with one of the other walkers, and to calculate the distance between their current states. In cartpole this is trivial, use the observation as the distance inputs, however for my case, where I'm using a dynamics function, you instead use the embeddings of their current states.
+2. The second vector representents explore. This is where the contrastive measure is used. The basic way this explore vector is calculated is by having each walker randomly paired with one of the other walkers, and to calculate the distance between their current states. In cartpole this is trivial, use the observation as the distance inputs, however for my case, where I'm using a dynamics function (more on that in the FractalZero section), you instead use the embeddings of their current states.
 
 ```python
 # relativization:
