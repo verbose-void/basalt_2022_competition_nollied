@@ -27,6 +27,9 @@ class TCCConfig:
     learning_rate: float = 0.001
     temperature: float = 0.1
 
+    # loss_key: str = "normalized_mse"
+    loss_key: str = "cross_entropy"
+
     # the number of unfrozen modules in the representation model.
     # https://analyticsindiamag.com/what-does-freezing-a-layer-mean-and-how-does-it-help-in-fine-tuning-neural-networks/
     num_unfrozen_layers: int = 4  
@@ -187,7 +190,7 @@ class TCCRepresentationTrainer:
     
         stats, embedded_t0, embedded_t1 = self._calculate_loss(t0, t1, with_gradient=True)
 
-        loss = stats["normalized_mse"]
+        loss = stats[self.config.loss_key]
 
         loss.backward()
         self.optimizer.step()
