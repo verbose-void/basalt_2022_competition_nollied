@@ -6,8 +6,11 @@ import numpy as np
 
 from typing import Dict, List
 
-from fgz.architecture._dynamics_function import DynamicsFunction
-from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
+import torch
+
+from new_fgz.architecture.representation_function import RepresentationFunction
+from new_fgz.architecture.dynamics_function import DynamicsFunction
+from new_fgz.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 
 
 MINERL_DATA_ROOT = os.getenv("MINERL_DATA_ROOT", "data/")
@@ -15,8 +18,15 @@ VPT_MODELS_ROOT = os.path.join(MINERL_DATA_ROOT, "VPT-models/")
 
 
 @dataclass
-class Config:
+class FinalConfig:
     minerl_env_ids: List[str]
+
+    # model_filename: str = "foundation-model-1x.model"
+    model_filename: str = "foundation-model-2x.model"
+    # model_filename: str = "foundation-model-3x.model"
+
+    # weights_filename: str = "foundation-model-1x.weights"
+    weights_filename: str = "rl-from-early-game-2x.weights"
 
     # train_steps: int
     # eval_every: int
@@ -35,6 +45,8 @@ class Config:
     max_trajectories: int = None
     model_log_frequency: int = 1000
 
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
     # representation_config: TCCConfig = field(default_factory=TCCConfig)
     # dynamics_config: MuZeroDynamicsConfig = field(default_factory=MuZeroDynamicsConfig)
 
@@ -48,13 +60,31 @@ class Config:
 
     #     return d
 
+    @property
+    def num_discriminator_classes(self):
+        return len(self.minerl_env_ids) + 1
 
-class Trainer:
+    @property
+    def model_path(self) -> str:
+        return os.path.join(VPT_MODELS_ROOT, self.model_filename)
 
-    def __init__(self, config: Config):
+    @property
+    def weights_path(self) -> str:
+        return os.path.join(VPT_MODELS_ROOT, self.weights_filename)
+
+
+class FinalTrainer:
+
+    def __init__(self, config: FinalConfig):
         self.config = config
 
-        self.dynamics_discriminator = DynamicsFunction(2048, )
+        self.representation_function = RepresentationFunction(
+            self.config.model_path, 
+            self.config.weights_path, 
+            device=self.config.device,
+        )
+
+        self.dynamics_function = DynamicsFunction(2048, discriminator_classes=self.config.num_discriminator_classes)
 
         self._build_dataloaders()
 
@@ -98,6 +128,6 @@ class Trainer:
 if __name__ == "__main__":
     tasks = ["MineRLBasaltBuildVillageHouse-v0"]
 
-    cfg = Config(minerl_env_ids=tasks)
-    trainer = Trainer(cfg)
+    cfg = FinalConfig(minerl_env_ids=tasks)
+    trainer = FinalTrainer(cfg)
     trainer.train_step()

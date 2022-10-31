@@ -11,6 +11,6 @@ setup(
     author="Dyllan McCreary",
     description="",
     author_email="dyllanmccreary@gmail.com",
-    packages=["xirl_zero", "fgz"],
+    packages=["xirl_zero", "fgz", "new_fgz"],
     install_requires=requirements,
 )
