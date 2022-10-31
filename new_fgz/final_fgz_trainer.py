@@ -9,7 +9,7 @@ from typing import Dict, List
 import torch
 
 from new_fgz.architecture.representation_function import RepresentationFunction
-from new_fgz.architecture.dynamics_function import DynamicsFunction
+from new_fgz.architecture.dynamics_function import DynamicsFunction, vectorize_minerl_actions
 from new_fgz.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 
 
@@ -112,9 +112,33 @@ class FinalTrainer:
 
         return tasks, all_frames, all_actions
 
+    def single_trajectory_loss(self, task_label, frames, actions):
+
+        embedded_frames = self.representation_function.embed(torch.tensor(frames, device=self.device))
+        vectorize_minerl_actions(actions, device=self.device)
+
+        state = None
+        for embedded_frame in embedded_frames:
+
+            pass
+
+        return 0
+
+
     def train_step(self):
-        tasks, frames, actions = self.get_batch()
+        task_labels, batched_frames, batched_actions = self.get_batch()
+
+        total_loss = 0
+        for task_label, frames, actions in zip(task_labels, batched_frames, batched_actions):
+            total_loss += self.single_trajectory_loss(task_label, frames, actions)
+
         print(len(frames), actions)
+
+        for frames in batched_frames:
+
+        self.representation_function.embed(frames)
+
+        self.dynamics_function.forward()
 
         # TODO: load N trajectories (in the same way as XIRL did, with occasional frames with actions between them)
 

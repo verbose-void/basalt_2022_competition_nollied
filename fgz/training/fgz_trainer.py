@@ -208,7 +208,8 @@ class FGZTrainer:
         # reset the hidden state of the agent, so we don't carry over any context from
         # the previous trajectory.
         self.agent.reset()
-        self.current_trajectory_window = self.data_handler.sample_single_trajectory()
+        # self.current_trajectory_window = self.data_handler.sample_single_trajectory()
+        self.current_trajectory = self.data_handler.sample()
 
         desc = self._get_tqdm_description()
         it = tqdm(

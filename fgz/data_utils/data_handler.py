@@ -215,7 +215,7 @@ class ContiguousTrajectoryWindow:
         return self.window
 
 
-def get_trajectories(dataset_path: str, for_training: bool, train_split: float):
+def get_trajectories(dataset_path: str, for_training: bool, train_split: float, task_id):
     assert train_split > 0 and train_split < 1
 
     # gather all unique IDs for every video/json file pair.
@@ -250,7 +250,7 @@ def get_trajectories(dataset_path: str, for_training: bool, train_split: float):
         # print(trajectory_prefix, sorted_date_times)
 
         try:
-            chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix)#, task_id=task_id)
+            chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix, task_id=task_id)
             trajectories.append(chunked_traj)
         except ValueError:
             warn(f"Missing video/json path! Skipping... {trajectory_prefix} {sorted_date_times}")
@@ -266,7 +266,7 @@ class ContiguousTrajectoryDataLoader:
         self.minimum_steps = minimum_steps
         self.is_train = is_train
 
-        self.trajectories = get_trajectories(dataset_path, for_training=is_train, train_split=train_split)
+        self.trajectories = get_trajectories(dataset_path, for_training=is_train, train_split=train_split, task_id=task_id)
         # create ContiguousTrajectory objects for every mp4/json file pair.
         # self.trajectories = []
         # for unique_id in sorted(unique_ids):

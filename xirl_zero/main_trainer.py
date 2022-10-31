@@ -9,7 +9,7 @@ import wandb
 
 import time
 
-from xirl_zero.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
+from fgz.data_utils.contiguous_trajectory_loader import ContiguousTrajectoryLoader
 from xirl_zero.trainers.tcc_representation import TCCConfig, TCCRepresentationTrainer
 from xirl_zero.trainers.muzero_dynamics import MuZeroDynamicsConfig, MuZeroDynamicsTrainer
 

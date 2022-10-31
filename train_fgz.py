@@ -160,7 +160,7 @@ def main(
     # minerl_env = gym.make('MineRLBasaltMakeWaterfall-v0')
     agent = get_agent(config)
     dynamics_env = get_dynamics_environment(config, agent)
-    data_handler = get_data_handler(config, agent)
+    # data_handler = get_data_handler(config, agent)
 
     # setup optimizer and learning rate schedule
     dynamics_function_optimizer = torch.optim.Adam(
