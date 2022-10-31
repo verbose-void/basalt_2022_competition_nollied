@@ -1,196 +1,115 @@
-# NeurIPS 2022: MineRL BASALT Competition Starter Kit
+# BASALT 2022 Challenge Research
 
-[![Discord](https://img.shields.io/discord/565639094860775436.svg)](https://discord.gg/BT9uegr)
+I began this challenge with a few self-imposed constraints to spice things up:
+1. Don't use a value function in [the traditional sense](http://www.incompleteideas.net/book/ebook/node34.html). Temporal difference learning of value functions in deep-RL is notoriously hard and sensitive to hyperparameters. They're also highly dependent upon the ever-changing policy. I believe there should be a more robust solution, so I set out to not use them.
+2. Design my solution to work for any arbitrary action/observation space with minimal architectural requirements.
+3. Try not to train a policy function, instead, center the focus of my training on the composition of the reward function. This is how I justified being able to not have a value function on the side of the "generating" agent.
 
-This repository is the main MineRL BASALT 2022 Competition **submission template** (only for the "basalt" track")!
+I was inspired by the work of [GAIL](https://arxiv.org/abs/1606.03476) and [AIRL](https://arxiv.org/abs/1710.11248) to use a discriminator model in my solution. However, it wouldn't exactly be a GAN setup, because of my 3rd constraint -- Try not to train a policy model.
 
-You can find the "intro" track submission kit [here](https://github.com/minerllabs/basalt_intro_track_2022_competition_submission_template).
+## Rare Event Sampling (RES)
+Rare event sampling (RES) is a branch of research centered around physics (thermodynamics, chemistry, biology, etc.). It has not yet made it into the deep reinforcement learning community, despite being highly applicable.
 
-MineRL BASALT is a competition on solving human-judged tasks. The tasks in this competition do not have a pre-defined reward function: the goal is to produce trajectories that are judged by real humans to be effective at solving a given task.
+RES algorithms in essence are a sort of non-parametric tree search with the goal of efficiently sampling/measuring the probability of rare events without bias. We can draw many parallels between these algorithms, and the role that the [Monte Carlo Tree Search](https://en.wikipedia.org/wiki/Monte_Carlo_tree_search) (MCTS) plays in DRL for methods like [AlphaZero](https://arxiv.org/abs/1712.01815), and more importantly for my work here, [MuZero](https://arxiv.org/abs/1911.08265). 
 
-See [the AICrowd competition page](https://www.aicrowd.com/challenges/neurips-2022-minerl-basalt-competition) for further information.
+Importantly, MCTS uses a value function (violating my 1st constraint) to efficiently perform it's lookahead.
 
-**This repository contains**:
-*  **Documentation** on how to submit your agent to the leaderboard
-*  **Starter code** for you to base your submission (an agent that takes random actions)!
+## Fractal Monte Carlo (FMC)
+Instead of MCTS/other RES algorithms, I chose to use [Fractal Monte Carlo (FMC)](https://arxiv.org/abs/1803.05049), a relatively unknown and forgotten RES algorithm that I've had the pleasure to work with for the past 5 years, reimplementing it dozens of times, and even getting to work directly with the original authors.
 
-**Other Resources**:
-- [AICrowd competition page](https://www.aicrowd.com/challenges/neurips-2022-minerl-basalt-competition) - Main registration page & leaderboard.
-- [MineRL Documentation](http://minerl.io/docs) - Documentation for the `minerl` package!
+FMC (and many other RES methods) use a population of "walkers" which are essentially random-acting agents through the environment which are coordinated by whatever algorithm (in my case FMC) is used. You can think of them as cellular automatan where their rule set is the "perturbation" and "cloning" phases.
 
-# How to Submit a Model on AICrowd.
+It's key distinction between many RES methods and MCTS is the usage of a contrastive orientation method. They calculate something called "virtual rewards" which is a composite function of 2 "relativized" vectors (see the function below). 
+1. The first of these vectors represents exploit (it's the score of a trajectory -- which could be the sum of previous accumulated rewards or the average reward accumulated, etc.). You can also think of a "score" as a value function, although in my case I don't use one, but it's supposed to play the same role.
+2. The second vector representents explore. This is where the contrastive measure is used. The basic way this explore vector is calculated is by having each walker randomly paired with one of the other walkers, and to calculate the distance between their current states. In cartpole this is trivial, use the observation as the distance inputs, however for my case, where I'm using a dynamics function (more on that in the FractalZero section), you instead use the embeddings of their current states.
 
-In brief: you define your Python environment using Anaconda environment files, and AICrowd system will use the `run.py` file to train and evaluate your agents.
-
-You submit pretrained models, the evaluation code and the training code. Training code should produce the same models you upload as part of your submission. You **must** upload the training code; which will be used to retrain and validate finalist submissions.
-
-Your evaluation code (`test_<env_name>.py`) only needs to control the agent and accomplish the environment's task. The evaluation server will handle recording of videos. Do not change the number of episodes played or maximum number of steps executed: the submissions will fail otherwise.
-
-## Setup
-
-1.  **Clone the github repository** or press the "Use this Template" button on GitHub!
-
-    ```
-    git clone https://github.com/minerllabs/basalt_2022_competition_submission_template.git
-    ```
-
-2. **Install** MineRL specific dependencies! Mainly, make sure you have Java JDK 8! See more details [here](https://minerl.readthedocs.io/en/v1.0.0/tutorials/index.html)
-
-3. **Specify** your specific submission dependencies (PyTorch, Tensorflow, kittens, puppies, etc.)
-
-    * **Anaconda Environment**. To make a submission you need to specify the environment using Anaconda environment files. It is also recommended you recreate the environment on your local machine. Make sure at least version `4.5.11` is required to correctly populate `environment.yml` (By following instructions [here](https://www.anaconda.com/download)). Then:
-       * **Create your new conda environment**
-
-            ```sh
-            cd basalt_2022_competition_submission_template
-            conda env create -f environment.yml
-            conda activate minerl
-            ```
-
-      * **Your code specific dependencies**
-        Add your own dependencies to the `environment.yml` file. **Remember to add any additional channels**. PyTorch requires the channel `pytorch`, for example.
-        You can also install them locally using
-        ```sh
-        conda install <your-package>
-        ```
-
-    * **Pip Packages** If you need pip packages (not on conda), you can add them to the `environment.yml` file (see the currently populated version):
-
-    * **Apt Packages** If your training procedure or agent depends on specific Debian (Ubuntu, etc.) packages, add them to `apt.txt`.
-
-If above are too restrictive for defining your environment, see [this Discourse topic for more information](https://discourse.aicrowd.com/t/how-to-specify-runtime-environment-for-your-submission/2274).
-
-## What should my code structure be like ?
-
-Please follow the example structure shared in the starter kit for the code structure.
-The different files and directories have the following meaning:
-
-```
-.
-├── aicrowd.json                     # Submission meta information like your username
-├── apt.txt                          # Packages to be installed inside docker image
-├── config.py                        # Config for debugging submissions
-├── data                             # DO NOT UPLOAD THE DATASET. This data will be available on the training instance.
-│   ├── MineRLBasaltBuildVillageHouse-v0
-│   │   ├── Player139-40dd711bfe2e-20220626-202049.jsonl
-│   │   ├── Player139-40dd711bfe2e-20220626-202049.mp4
-│   │   ├── Player139-62ae2702e774-20220626-201655.jsonl
-│   │   ├── Player139-62ae2702e774-20220626-201655.mp4
-│   │   └── ... rest of the files
-│   ├── MineRLBasaltCreateVillageAnimalPen-v0
-│   │   └── ... files as above
-│   ├── MineRLBasaltFindCave-v0
-│   │   └── ... files as above
-│   ├── MineRLBasaltMakeWaterfall-v0
-│   │   └── ... files as above
-│   └── VPT-models
-│       ├── foundation-model-1x.model
-│       ├── foundation-model-1x.weights
-│       ├── foundation-model-3x.model
-│       ├── foundation-model-3x.weights
-│       └── ... rest of the models
-├── environment.yml                  # Conda environment description
-├── LICENCE                          # Licence
-├── run.py                           # The file that runs training and evaluation
-├── test_BuildVillageHouse.py        # IMPORTANT: Your testing/inference phase code.
-├── test_CreateVillageAnimalPen.py   # IMPORTANT: Your testing/inference phase code.
-├── test_FindCave.py                 # IMPORTANT: Your testing/inference phase code.
-├── test_MakeWaterfall.py            # IMPORTANT: Your testing/inference phase code.
-├── train                            # IMPORTANT: Your trained models MUST be saved inside this directory
-└── train.py                         # IMPORTANT: Your training code. Running this should produce the same agent as you upload as part of the agent.
+```python
+# relativization:
+def relativize_vector(vector: torch.Tensor):
+    std = vector.std()
+    if std == 0:
+        return torch.ones(len(vector))
+    standard = (vector - vector.mean()) / std
+    standard[standard > 0] = torch.log(1 + standard[standard > 0]) + 1
+    standard[standard <= 0] = torch.exp(standard[standard <= 0])
+    return 
 ```
 
-Finally, **you must specify an AIcrowd submission JSON in `aicrowd.json` to be scored!**
+The virtual rewards are then used to coordinate the walkers after they take uniformly random actions. This is done by "cloning", where each walker has a probability to be sent as a reinforcement to another walker based on how much it would benefit the explore/exploit balance:
 
-The `aicrowd.json` of each submission should contain the following content:
+```python
+# cloning (with virtual rewards)
+def clone(self):
+    # scores are either current rewards, average accumulated reward, accumulated reward, etc. The scale here is **invariant** because of the relitivization method.
+    scores = self._get_scores()
 
-```json
-{
-  "challenge_id": "neurips-2022-minerl-basalt-competition",
-  "authors": ["your-aicrowd-username"],
-  "description": "sample description about your awesome agent",
-  "license": "MIT",
-  "gpu": true,
-  "debug": true,
-  "track": "basalt"
-}
+    partners = # randomly assign partners
+    walker_distances = 1 - F.cosine_similarity(self.states, self.states[partners], dim=-1)
+
+    rel_scores = relativize_vector(scores)
+    rel_distances = relativize_vector(walker_distances)
+
+    # NOTE: if balance is 1.0, explore and exploit are equally weighted (generally gives good results)
+    virtual_rewards = rel_scores ** self.balance * rel_distances
+
+    # calculate the clone mask
+    vr = virtual_rewards
+    pair_vr = virtual_rewards[partners]
+    value = (pair_vr - vr) / torch.where(vr > 0, vr, 1e-8)
+    clone_mask = (value >= torch.rand(1)).bool()
+
+    # execute cloning
+    self.states[clone_mask] = self.states[partners[clone_mask]]
 ```
 
-This JSON is used to map your submission to the said challenge, so please remember to use the correct `challenge_id` as specified above.
+Since we sample actions uniformly, this satisfies my 2nd constraint, aiming to be applicable to arbitrary action spaces. Because gym environments always have a ".sample()" method to generate a uniformly random action.
 
-By default, the `debug` flag is set to `true`. This makes evaluations run a single short episode. Please submit this way first to see if everything works fine on the AICrowd side. If it does, go ahead and submit with `debug` set to `false`.
+Although this algorithm is quite simple, only having 2 hyperparameters (number of walkers/parallel states, and balance), it's very powerful for generating trajectories through the state space. For cartpole, 16 walkers and 200 steps of the simulation will always give you a winning trajectory with absolutely no neural networks or function approximators. Tons of atari games have also been solved this way. See a chart of scores [here](https://github.com/FragileTech/FractalAI#fractal-monte-carlo-agent-performance-table).
 
-Please specify if your code will use a GPU or not for the evaluation of your model.
+I've applied this technique to many real world problems and it's always been extremely useful.
 
-### Dataset and pretrained model location for training
 
-You **don't** need to upload the provided BASALT dataset or pretrained models for the training stage, and it will be provided in online submissions at `MINERL_DATA_ROOT` path (points to the `data` directory), should you need them for training. Note that `data` directory is not filled with data during initial evaluation phase.
+## FractalZero (FMC + MuZero)
+The reason why MuZero was chosen over AlphaZero is because it makes use of a "representation function" and a "dynamics function". These are important components for the application of a tree search/RES method to the MineRL environments because in order for these techniques to work, you must be able to extract the current state of the environment AND be able to copy + restore from an extracted state, which, due to the complexity of the MineRL environments, is infeasible with the current implementations.
 
-**Please** only add files needed for the submission; too large submissions may fail randomly. Having large git history is fine.
+MuZero's representation function takes the current observation from the environment and puts it into an embedding space. The following dynamics function then "unrolls" a simulated version of the actual environment's dynamics by taking in a sequence of actions and forwarding the embedding (provided originally from the representation function) along. So at each time step, the dynamics function takes in the corresponding action, and outputs the next state embedding alongside the reward it believes the original environment would have assigned. A tree search/RES method can then be applied to this.
 
-See instructions [here](https://github.com/minerllabs/basalt-2022-behavioural-cloning-baseline#downloading-basalt-dataset) on how to download the BASALT dataset.
+This is analagous to how the pretrained MineRL models take the current observation and place them into an embedding space to be processed by the recurrent layer.  
 
-## How to submit!
+With a perfect dynamics model (that's also feasible to run with low latency) and a perfect tree search/RES, you could theoretically find trajectories to terminal states assuming you have a good reward function to follow, regardless of the complexity of the original environment's implementation (ie. if it is copyable or not).
 
-To make a submission, you will have to create a private repository on [https://gitlab.aicrowd.com/](https://gitlab.aicrowd.com/).
+So, instead of using MuZero with a replay buffer and playing the game in the way MuZero did, I use the human demonstration data as the replay buffer (offline data).
 
-You will have to add your SSH Keys to your GitLab account by following the instructions [here](https://docs.gitlab.com/ee/user/ssh.html).
-If you do not have SSH Keys, you will first need to [generate one](https://docs.gitlab.com/ee/user/ssh.html#generate-an-ssh-key-pair).
+But, there's one more piece missing that I haven't mentioned yet; and that's the "prediction function" from MuZero. The prediction function takes the current embedded state (either from the representation function OR the dynamics function) and outputs policy logits and the estimated value. However, because of my constraints, I decided to drop the "prediction function" entirely. I don't want to learn a policy, and I don't want to learn a value function.
 
-Then you can create a submission by making a _tag push_ to your repository on [https://gitlab.aicrowd.com/](https://gitlab.aicrowd.com/).
-**Any tag push (where the tag name begins with "submission-") to your private repository is considered as a submission**
-Then you can add the correct git remote, and finally submit by doing:
+Since MineRL does NOT provide a reward function... I had to get creative for how to train the dynamics/representation functions.
 
-```
-cd basalt_2022_competition_submission_template
-# Add AIcrowd git remote endpoint
-git remote add aicrowd git@gitlab.aicrowd.com:<YOUR_AICROWD_USER_NAME>/basalt_2022_competition_submission_template.git
-git push aicrowd main
+## Discriminator Dynamics Function
+In GAIL and GANs in general, there are 2 competing "players" for some task. There's a discriminator, which is given some sample and should predict whether that sample came from an expert (in our case, human demonstrations of performing some specific minecraft task), OR the generator, which in the tradional case of GANs would be a basic neural network, and for GAIL, it would be something like a TRPO trained agent (or for more recent use cases, PPO).
 
-# Create a tag for your submission and push
-git tag -am "submission-v0.1" submission-v0.1
-git push aicrowd main
-git push aicrowd submission-v0.1
+They compete by both optimizing inverse versions of some loss function. For a binary classifying discriminator on a dataset of cat images, the discriminator's goal is to **minimize** binary cross entropy of "is cat" or "is fake cat". The generator's goal is to confuse the discriminator into thinking it's outputs are a real cat, and not a fake one. This is done by **maximizing** the discriminator's binary cross entropy.
 
-# Note : If the contents of your repository (latest commit hash) do not change,
-# then pushing a new tag will **not** trigger a new evaluation.
-```
+This is quite an elegant setup, although they can be very sensitive to the balance of progress. If the discriminator gets too far ahead of the generator, it can de-stabilize the network and the generator may not generate anything useful within a reasonable amount of time.
 
-You now should be able to see the details of your submission at: `https://gitlab.aicrowd.com/<YOUR_AICROWD_USER_NAME>/basalt_2022_competition_submission_template/issues/`
+This is where, instead of training a deep reinforcement learning agent to confuse the discriminator, I opted to use FMC as a policy improvement operator (the role that MCTS plays in deep reinforcement learning). Since it's fast to run and doesn't require a value function, I had FMC maximize the confusion of the discriminator.
 
-**Best of Luck** :tada: :tada:
+What's also cool about this setup, is I can have the discriminator be generalized to all tasks by having it perform multi-class classificaiton, where the goal is to predict which task a trajectory belongs to (find cave, make waterfall, etc.) AND an extra class logit for the generator (FMC). Softmaxing this output, gets you a reward target for FMC to optimize in the dynamics environment...
 
-## Large model files
+**So, actually, the discriminator IS the MuZero dynamics function!** The dynamics function is trained to, at each time step, minimize the cross entropy loss for 5 classes:
+1. Trajectory is task Find Cave
+2. Trajectory is task Make Waterfall
+3. Trajectory is task Build House
+4. Trajectory is task Animal Pen
+5. Trajectory was generated by FMC
 
-To upload large model files (e.g., your fine-tuned versions of the OpenAI VPT models, which can reach gigabytes), use git LFS. See instructions [here](https://discourse.aicrowd.com/t/how-to-upload-large-files-size-to-your-submission/2304).
+Naturally, this is easy to optimize, because we already have the dataset and can train a video classifier (with an extra set of input features, being the actions taken).
 
-# Ensuring that your code works.
+For FMC, the environment that's being used is the dynamics function with the reward as being the target task logit (after all logits have been softmaxed). This reward function means we're kind of trying to generate adversarial examples, which, with the 5th classification label being FMC itself, the discriminator is hypothesized to become robust to these examples, and since FMC is a policy improvement operator much like MCTS, the idea would be that FMC never gets TOO good and the discriminator (so long as it's playing by the rules -- more on that in the "FMC Got Hacked" section) also never gets too good, since it's embeddings are directly being used by FMC as part of it's cellular automata rule set.
 
-You can perform local training and evaluation by simply running `python run.py`, which then runs `train.py` and all four `test_<env_name>.py` scripts.
 
-**Note** that you do not need to record videos in your code! AICrowd server will handle this. Your code only needs to play the games.
+## FMC Got Hacked
+TODO
 
-# Team
 
-The quick-start kit was authored by
-[Anssi Kanervisto](https://www.microsoft.com/en-us/research/people/t-anssik/), [Karolis Ramanauskas](https://ka.rol.is/) and [Shivam Khandelwal](https://twitter.com/skbly7) with help from [William H. Guss](http://wguss.ml)
-
-The BASALT competition is organized by the following team:
-
-* [Anssi Kanervisto](https://www.microsoft.com/en-us/research/people/t-anssik/) (Microsoft Research)
-* [Stephanie Milani](https://stephmilani.github.io/) (Carnegie Mellon University)
-* [Karolis Ramanauskas](https://ka.rol.is/) (Independent)
-* [Byron V. Galbraith](https://github.com/bgalbraith) (Seva Inc.)
-* Steven H. Wang (ETH Zürich)
-* [Sander Schulhoff](https://trigaten.github.io/) (University of Maryland)
-* Brandon Houghton (OpenAI)
-* Sharada Mohanty (AIcrowd)
-* [Rohin Shah](https://rohinshah.com) (DeepMind)
-
-Advisors:
-
-* Andrew Critch (Encultured.ai)
-* Fei Fang (Carnegie Mellon University)
-* Kianté Brantley (Cornell University)
-* Sam Devlin (Microsoft Research)
-* Oriol Vinyals (DeepMind)
+## XIRL/TCC Representation Function
+TODO: note about how i observed that the pretrained image process models that were provided may have already had the properties that TCC trained embeddings had (structured embedding space w.r.t temporality/task completion)

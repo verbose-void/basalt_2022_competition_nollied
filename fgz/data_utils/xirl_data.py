@@ -16,7 +16,7 @@ from xirl_config import XIRLConfig
 @ray.remote
 class XIRLDataHandler:
     def __init__(
-            self, config: XIRLConfig, dataset_path: str, device, # dynamics_function: DynamicsFunction
+            self, config: XIRLConfig, dataset_path: str, device, is_train: bool=True, # dynamics_function: DynamicsFunction
     ):
         # self.agent = agent
         # self.agent = load_agent(model_path, weights_path, device=device)  # TODO: should we use GPU or force CPU?
@@ -24,9 +24,7 @@ class XIRLDataHandler:
         self.config = config
         self.device = device
 
-        # TODO: set to None!
-        max_num_trajectories = None
-        self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, max_num_trajectories=max_num_trajectories)
+        self.trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path, is_train=is_train)
         # self.dynamics_function = dynamics_function
 
     def embed_trajectory(
@@ -101,7 +99,7 @@ class XIRLDataHandler:
 
         if t0.uid == t1.uid:
             # try again if they're the same.
-            return self.sample_pair()
+            return self.sample_pair(max_frames=max_frames)
 
         try:
             emb0 = self.embed_trajectory(t0, max_frames=max_frames)
@@ -109,10 +107,9 @@ class XIRLDataHandler:
             return emb0, emb1
         except:
             warn("Failed to embed trajectories. Trying to sample again...")
-            return self.sample_pair()
+            return self.sample_pair(max_frames=max_frames)
 
 
-@ray.remote
 class MultiProcessXIRLDataHandler:
     def __init__(
             self,  config: XIRLConfig, dataset_path: str, device, num_workers: int=4,
@@ -126,7 +123,7 @@ class MultiProcessXIRLDataHandler:
         self.handlers = []
         self.tasks = []
         for _ in range(num_workers):
-            handler = XIRLDataHandler.remote(config, dataset_path, device)
+            handler = XIRLDataHandler.remote(config, dataset_path, device, is_train=True)
             self.handlers.append(handler)
 
             # kick-start sampling
@@ -147,24 +144,11 @@ class MultiProcessXIRLDataHandler:
             ready_ids, _remaining_ids = ray.wait(self.tasks, num_returns=self.num_workers, timeout=0)
 
             for ready_id in ready_ids:
-                # self.ready_samples.append(ready_id)
-
-            # if len(ready_ids) > 0:
-                # print("num that were ready", len(ready_ids))
                 ready_index = self.tasks.index(ready_id)
-                # ready_id = self.tasks[ready_index]
 
                 # overwrite task with new one.
                 self.tasks[ready_index] = self.handlers[ready_index].sample_pair.remote()
 
-                # move the task and corresponding handler to the back of the line.
-                # moving_id = self.tasks.pop(ready_index)
-                # moving_handler = self.handlers.pop(ready_index)
-                # self.tasks.append(moving_id)
-                # self.handlers.append(moving_handler)
-
-                # return ray.get(ready_id)
-                # return ready_id
                 self.buffer.append(ready_id)
 
             if len(self.buffer) > 0:

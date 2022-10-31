@@ -3,32 +3,30 @@ from vpt.agent import AGENT_RESOLUTION, MineRLAgent, resize_image
 from xirl_zero.architecture.dynamics_function import DynamicsFunction
 
 import torch
-from xirl_config import XIRLConfig
 
 from vpt.run_agent import load_agent
 
 
-class XIRLModel(torch.nn.Module):
+class RepresentationFunction(torch.nn.Module):
 
-    def __init__(self, config: XIRLConfig, device=None):
+    def __init__(self, model_path: str, weights_path: str, device=None, num_unfrozen_layers: int = None):
         super().__init__()
 
-        self.config = config
         self.device = device
 
-        agent = load_agent(config.model_path, config.weights_path, device=device)
+        agent = load_agent(model_path, weights_path, device=device)
 
         self.img_preprocess = agent.policy.net.img_preprocess
         self.img_process = agent.policy.net.img_process
 
-        params = list(self.parameters())
-        num_unfrozen = config.num_unfrozen_layers
-        c = 0
-        for param in reversed(params):
-            if c >= num_unfrozen:
-                param.requires_grad = False
-            c += 1
-        print(f"Unfrozen: {num_unfrozen}/{c}")
+        if num_unfrozen_layers is not None:
+            params = list(self.parameters())
+            c = 0
+            for param in reversed(params):
+                if c >= num_unfrozen_layers:
+                    param.requires_grad = False
+                c += 1
+            print(f"Unfrozen: {num_unfrozen_layers}/{c}")
 
     def prepare_observation(self, minerl_obs):
         agent_input = resize_image(minerl_obs["pov"], AGENT_RESOLUTION)[None]

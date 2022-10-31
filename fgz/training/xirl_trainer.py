@@ -30,26 +30,17 @@ class XIRLTrainer:
         assert len(self.config.enabled_tasks) == 1, "XIRL only supports single tasks currently."
         dataset_path = self.config.dataset_paths[0]
 
-        # self.data_handler = XIRLDataHandler.remote(
-        #     dataset_path, device=data_device
-        # )
         self.data_handler = MultiProcessXIRLDataHandler.remote(
             config, dataset_path, device=data_device, num_workers=self.config.data_workers,
+        )
+
+        self.eval_data_handler = XIRLDataHandler.remote(
+            config, dataset_path, device=data_device, is_train=False,
         )
 
         print("Model is using device", self.device)
         self.model = XIRLModel(self.config, self.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, weight_decay=1e-5, betas=(0.99, 0.999))
-
-        # NOTE: we can't use the same agent without more complicated thread-safeness code.
-        # self.agent = load_agent(model_path, weights_path)
-
-        # self.dynamics_function = DynamicsFunction(embedder_layers=4, state_embedding_size=2048).to(device)
-        # self.optimizer = torch.optim.Adam(self.dynamics_function.parameters(), lr=config.learning_rate, weight_decay=1e-5)
-
-        # self.data_handler = XIRLDataHandler(
-        #     dataset_path, self.agent, self.dynamics_function
-        # )
 
         self.get_next_data()
 
@@ -99,7 +90,7 @@ class XIRLTrainer:
 
     def get_next_data(self):
         print("Asynchronously gathering the next trajectory pair...")
-        self.next_data = self.data_handler.sample_pair.remote()
+        self.next_data = self.data_handler.sample_pair()
 
     def embed_trajectory(self, t):
         embedded = torch.zeros(size=(len(t), 2048), device=self.device, dtype=float)
@@ -117,13 +108,12 @@ class XIRLTrainer:
         return embedded.float()
 
     def train_on_pair(self):
+        self.model.train()
+
         assert self.config.num_frames_per_pair % self.config.batch_size == 0
 
         print("ray.getting the asynchronously gathered trajectory pair...")
-        (self.t0, self.a0), (self.t1, self.a1) = ray.get(ray.get(self.next_data))
-
-        # self.t0.requires_grad = True
-        # self.t1.requires_grad = True
+        (self.t0, self.a0), (self.t1, self.a1) = ray.get(self.next_data)
 
         # latency hidden data reading
         self.get_next_data()
@@ -141,8 +131,6 @@ class XIRLTrainer:
 
         print(self.embedded_t0.shape)
 
-        # self.dynamics_function.train()
-
         max_index = len(self.t0)
 
         num_frames = min(max_index, self.config.num_frames_per_pair)
@@ -151,8 +139,6 @@ class XIRLTrainer:
         # num_batches = len(self.t0) // self.config.batch_size
         for _ in range(num_batches):
             self.optimizer.zero_grad()
-
-            # total_loss = 0
 
             index_preds = []
             index_logits = []
@@ -168,15 +154,6 @@ class XIRLTrainer:
 
             # TODO: vectorize better
             for i in range(self.config.batch_size):
-                # pick random frame in t0
-                # self.chosen_frame_index = torch.randint(
-                #     low=0, high=len(self.t0), size=(1,)
-                # ).item()
-
-                # # embed again *with gradient*
-                # self.ui = self.model.embed(self.t0[self.chosen_frame_index].to(self.device))
-
-                # self.chosen_frame_index = chosen_indices[i]
                 self.ui = embeddings[i]
 
                 # calculate cycle MSE loss
@@ -196,24 +173,6 @@ class XIRLTrainer:
 
                 index_preds.append(mu)
                 index_logits.append(beta)
-
-                # index_targets.append(self.chosen_frame_index)
-
-                # print(mu, self.chosen_frame_index)
-                # print(mu / max_index, self.chosen_frame_index / max_index)
-
-                # divide both by total num frames to make indices in more reasonable range
-                # mu /= total_frames
-                # t = self.chosen_frame_index# / len(beta)
-                # print(mu, t, len(beta))
-
-                # cycle_loss = (1 + ((mu - t) / max_index)) ** 2
-                # self_consistency_loss = self.unroll()
-
-                # print(cycle_loss, total_loss)
-
-                # print(cycle_loss.item(), self_consistency_loss.item())
-                # total_loss += cycle_loss
 
             index_preds = torch.stack(index_preds)
 
@@ -250,6 +209,34 @@ class XIRLTrainer:
 
             effective_loss.backward()
             self.optimizer.step()
+
+    @torch.no_grad()
+    def get_eval_pair(self):
+        (t0, _), (t1, _) = ray.get(self.eval_data_handler.sample_pair())
+        et0 = self.embed_trajectory(t0)
+        et1 = self.embed_trajectory(t1)
+        return t0, et0, t1, et1
+
+    def calculate_batch_tcc_loss(self, t0, t1, embedded_t0, embedded_t1, for_train: bool=True):
+        max_index = len(t0)
+        chosen_indices = torch.randint(
+            low=0, high=max_index, size=(self.config.batch_size,)
+        )
+        frames = self.t0[chosen_indices].to(self.device)
+            
+        target_indices = chosen_indices.float().to(self.device)
+
+        if for_train:
+            embeddings = self.model.embed(frames)
+        else:
+            embeddings = embedded_t0[chosen_indices]
+
+    @torch.no_grad()
+    def eval_on_pair(self):
+        self.model.eval()
+
+        t0, et0, t1, et1 = self.get_eval_pair()
+        tcc_loss = self.calculate_batch_tcc_loss(t0, t1, et0, et1, for_train=False)
 
     def get_nbytes_stored(self):
         nbytes0 = sum([e.nelement() * e.element_size() for e in self.t0])

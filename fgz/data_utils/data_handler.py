@@ -215,44 +215,58 @@ class ContiguousTrajectoryWindow:
         return self.window
 
 
+def get_trajectories(dataset_path: str, for_training: bool, train_split: float, task_id):
+    assert train_split > 0 and train_split < 1
+
+    # gather all unique IDs for every video/json file pair.
+    unique_ids = glob(os.path.join(dataset_path, "*.mp4"))
+    unique_ids = list(set([os.path.basename(x).split(".")[0] for x in unique_ids]))
+
+    # get all chunked/unchunked trajectories as a dict of lists
+    full_trajectory_ids = defaultdict(list)
+    for clip_uid in unique_ids:
+
+        # player_uid, game_uid, date, time = clip_uid.split("-")  # doesn't work for "cheeky-cornflower" stuff
+        splitted = clip_uid.split("-")
+        game_uid, date, time = splitted[-3:]
+        player_uid = "-".join(splitted[:-3])
+
+        trajectory_prefix = os.path.join(dataset_path, f"{player_uid}-{game_uid}")
+        full_trajectory_ids[trajectory_prefix].append((date, time))
+
+    max_train_idx = int(np.floor(len(full_trajectory_ids) * train_split))
+
+    # sort and gather the trajectories into a single class
+    trajectories: Sequence[ChunkedContiguousTrajectory] = []
+
+    # training gets the first section, validation gets last
+    it = list(sorted(full_trajectory_ids.keys()))
+    it = it[:max_train_idx] if for_training else it[max_train_idx:]
+
+    for trajectory_prefix in it:
+        date_times = full_trajectory_ids[trajectory_prefix]
+
+        sorted_date_times = list(sorted(date_times))
+        # print(trajectory_prefix, sorted_date_times)
+
+        try:
+            chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix, task_id=task_id)
+            trajectories.append(chunked_traj)
+        except ValueError:
+            warn(f"Missing video/json path! Skipping... {trajectory_prefix} {sorted_date_times}")
+            continue
+
+    return trajectories
+
+
 class ContiguousTrajectoryDataLoader:
-    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64, max_num_trajectories: int=None):
+    def __init__(self, dataset_path: str, task_id: int = None, minimum_steps: int = 64, is_train: bool=True, train_split: float=0.8):
         self.dataset_path = dataset_path
         self.task_id = task_id
         self.minimum_steps = minimum_steps
+        self.is_train = is_train
 
-        # gather all unique IDs for every video/json file pair.
-        unique_ids = glob(os.path.join(self.dataset_path, "*.mp4"))
-        unique_ids = list(set([os.path.basename(x).split(".")[0] for x in unique_ids]))
-        self.unique_ids = unique_ids
-
-        # get all chunked/unchunked trajectories as a dict of lists
-        full_trajectory_ids = defaultdict(list)
-        for clip_uid in unique_ids:
-
-            # player_uid, game_uid, date, time = clip_uid.split("-")  # doesn't work for "cheeky-cornflower" stuff
-            splitted = clip_uid.split("-")
-            game_uid, date, time = splitted[-3:]
-            player_uid = "-".join(splitted[:-3])
-
-            trajectory_prefix = os.path.join(self.dataset_path, f"{player_uid}-{game_uid}")
-            full_trajectory_ids[trajectory_prefix].append((date, time))
-
-        # sort and gather the trajectories into a single class
-        self.trajectories: Sequence[ChunkedContiguousTrajectory] = []
-        for trajectory_prefix in sorted(full_trajectory_ids.keys()):
-            date_times = full_trajectory_ids[trajectory_prefix]
-
-            sorted_date_times = list(sorted(date_times))
-            # print(trajectory_prefix, sorted_date_times)
-
-            try:
-                chunked_traj = ChunkedContiguousTrajectory(trajectory_prefix, sorted_date_times, trajectory_prefix, task_id=task_id)
-                self.trajectories.append(chunked_traj)
-            except ValueError:
-                warn(f"Missing video/json path! Skipping... {trajectory_prefix} {sorted_date_times}")
-                continue
-
+        self.trajectories = get_trajectories(dataset_path, for_training=is_train, train_split=train_split, task_id=task_id)
         # create ContiguousTrajectory objects for every mp4/json file pair.
         # self.trajectories = []
         # for unique_id in sorted(unique_ids):

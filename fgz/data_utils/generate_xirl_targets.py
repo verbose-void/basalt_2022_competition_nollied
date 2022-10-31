@@ -1,3 +1,4 @@
+from warnings import warn
 from fgz.architecture.xirl_model import XIRLModel
 from fgz.data_utils.data_handler import ContiguousTrajectoryDataLoader
 from xirl_config import XIRLConfig
@@ -8,28 +9,60 @@ import torch
 
 
 
-def generate_target(config: XIRLConfig, model: XIRLModel, dataset_path: str):
-    trajectory_loader = ContiguousTrajectoryDataLoader(dataset_path)
-
-    all_last_frames = []
-    for trajectory in trajectory_loader.trajectories:
-        all_last_frames.append(trajectory.get_last_frame())
-    all_last_frames = torch.tensor(all_last_frames)
+@torch.no_grad()
+def generate_target(config: XIRLConfig, model: XIRLModel, trajectory_loader: ContiguousTrajectoryDataLoader, use_tqdm: bool, device = None):
+    model.eval()
 
     bs = config.embed_batch_size
+    target_embedding = torch.zeros(2048, dtype=float, device=device)
 
-    target_embedding = torch.zeros(2048, dtype=float)
-    num_demonstrations = len(all_last_frames)
+    all_last_frames = []
 
-    c = 0
-    while c < len(all_last_frames):
-        batch = all_last_frames[c:c+bs]
-
+    def _process_batch():
+        batch = torch.tensor(all_last_frames, device=device)
         embedded_batch = model.embed(batch)
-        embedded_batch /= num_demonstrations
-        target_embedding += torch.sum(embedded_batch, dim=0)
+        all_last_frames.clear()
+        return torch.sum(embedded_batch, dim=0)
 
-        c += bs
+    num_demonstrations = 0
+    for trajectory in tqdm(
+        trajectory_loader.trajectories, 
+        desc="Calculating XIRL Target State", 
+        total=len(trajectory_loader.trajectories),
+        disable=not use_tqdm,
+    ):
 
-    # model.embed(all_last_frames)
+        try:
+            all_last_frames.append(trajectory.get_last_frame())
+            num_demonstrations += 1
+        except:
+            warn(f"Skipping {str(trajectory)}")
+            pass
+
+        if len(all_last_frames) >= bs:
+            target_embedding += _process_batch()
+    if len(all_last_frames) > 0:
+        target_embedding += _process_batch()
+
+    target_embedding /= num_demonstrations
+
+    # all_last_frames = torch.tensor(all_last_frames)
+
+
+    # target_embedding = torch.zeros(2048, dtype=float)
+    # num_demonstrations = len(all_last_frames)
+
+    # c = 0
+    # while c < len(all_last_frames):
+    #     print(f"{c / len(all_last_frames) * 100}\%")
+
+    #     batch = all_last_frames[c:c+bs]
+
+    #     embedded_batch = model.embed(batch)
+    #     embedded_batch /= num_demonstrations
+    #     target_embedding += torch.sum(embedded_batch, dim=0)
+
+    #     c += bs
+
+    # # model.embed(all_last_frames)
     return target_embedding

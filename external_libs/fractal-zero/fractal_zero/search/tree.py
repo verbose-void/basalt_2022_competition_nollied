@@ -123,6 +123,11 @@ class Path:
         return self.ordered_states[-1]
 
     @property
+    def first_action(self):
+        u, v = self.ordered_states[0], self.ordered_states[1]
+        return self.get_action_between(u, v)
+
+    @property
     def last_action(self):
         if len(self.ordered_states) < 2:
             return None
@@ -149,7 +154,7 @@ class Path:
     def __next__(self):
         # stop one early because the last state should have no child nodes
         # therefore there won't be any actions registered for that state for this path.
-        if self._iter >= len(self) - 2:
+        if self._iter >= len(self) - 1:
             raise StopIteration
 
         state = self.ordered_states[self._iter]

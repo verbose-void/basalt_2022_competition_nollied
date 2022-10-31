@@ -56,6 +56,7 @@ class FMC:
         use_average_rewards: bool = False,
         similarity_function: Callable = _dist,
         # similarity_function: Callable = _l2_distance,
+        reward_is_score: bool = False,
         freeze_best: bool = True,
         track_tree: bool = True,
         prune_tree: bool = True,
@@ -66,6 +67,7 @@ class FMC:
         self.use_average_rewards = use_average_rewards
         self.similarity_function = similarity_function
 
+        self.reward_is_score = reward_is_score
         self.freeze_best = freeze_best
         self.track_tree = track_tree
         self.prune_tree = prune_tree
@@ -132,7 +134,12 @@ class FMC:
             self.dones,
             self.infos,
         ) = self.vec_env.batch_step(self.actions, freeze_steps)
-        self.scores += self.rewards.cpu()
+
+        if self.reward_is_score:
+            self.scores = self.rewards.cpu().clone()
+        else:
+            self.scores += self.rewards.cpu()
+
         self.average_rewards = self.scores / self.tree.get_depths()
 
         if self.tree:
@@ -216,8 +223,8 @@ class FMC:
             self._clone_variable(attr)
 
         # sanity checks (TODO: maybe remove this?)
-        if not torch.allclose(self.scores, self.tree.get_total_rewards(), rtol=0.001):
-            raise ValueError(self.scores, self.tree.get_total_rewards())
+        # if not torch.allclose(self.scores, self.tree.get_total_rewards(), rtol=0.001):
+        #     raise ValueError(self.scores, self.tree.get_total_rewards())
         # if self.rewards[self.freeze_mask].sum().item() != 0:
         #     raise ValueError(self.rewards[self.freeze_mask], self.rewards[self.freeze_mask].sum())
 
