@@ -1,5 +1,15 @@
-# BASALT 2022 Challenge Research
+# FractalZero
 
+## Preface
+I wasn't able to get a submission ready for evaluation in time for the deadline. I work full time, so during the majority of the competition I was only able to work on my free time, usually on weekends. However, at the end of the competition I took a full 2 weeks off work to focus 100% on my solution.
+
+Though I feel I made tremendous progress in terms of code, I don't have any results to show and have limited time to write this document, so I'll detail the solution to the best of my abilities.
+
+I observed signs of life from the technique described in the following sections, however most of my evidence (figures, plots, etc.) are scattered all over the place in many different wandb experiments/files on my harddrive and it would take a lot of time to piece them into a story that makes any amount of sense.
+
+I plan on revisiting this project, and I'd like to eventually publish a paper on it when I have time.
+
+## Constraints
 I began this challenge with a few self-imposed constraints to spice things up:
 1. Don't use a value function in [the traditional sense](http://www.incompleteideas.net/book/ebook/node34.html). Temporal difference learning of value functions in deep-RL is notoriously hard and sensitive to hyperparameters. They're also highly dependent upon the ever-changing policy. I believe there should be a more robust solution, so I set out to not use them.
 2. Design my solution to work for any arbitrary action/observation space with minimal architectural requirements.
@@ -112,10 +122,3 @@ Naturally, this is easy to optimize, because we already have the dataset and can
 
 For FMC, the environment that's being used is the dynamics function with the reward as being the target task logit (after all logits have been softmaxed). This reward function means we're kind of trying to generate adversarial examples, which, with the 5th classification label being FMC itself, the discriminator is hypothesized to become robust to these examples, and since FMC is a policy improvement operator much like MCTS, the idea would be that FMC never gets TOO good and the discriminator (so long as it's playing by the rules -- more on that in the "FMC Got Hacked" section) also never gets too good, since it's embeddings are directly being used by FMC as part of it's cellular automata rule set.
 
-
-## FMC Got Hacked
-TODO
-
-
-## XIRL/TCC Representation Function
-TODO: note about how i observed that the pretrained image process models that were provided may have already had the properties that TCC trained embeddings had (structured embedding space w.r.t temporality/task completion)
