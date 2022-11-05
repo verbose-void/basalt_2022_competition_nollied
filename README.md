@@ -7,7 +7,7 @@ Though I feel I made tremendous progress in terms of code, I don't have any resu
 
 I observed signs of life from the technique described in the following sections, however most of my evidence (figures, plots, etc.) are scattered all over the place in many different wandb experiments/files on my harddrive and it would take a lot of time to piece them into a story that makes any amount of sense.
 
-I plan on revisiting this project, and I'd like to eventually publish a paper on it when I have time.
+I plan on revisiting this project, and I'd like to eventually publish a paper on it when I have time. It would be nice to be considered for the research prize.
 
 ## Constraints
 I began this challenge with a few self-imposed constraints to spice things up:
