@@ -24,14 +24,14 @@ RES algorithms in essence are a sort of non-parametric tree search with the goal
 
 Importantly, MCTS uses a traditional value function (violating my 1st constraint) to efficiently perform it's lookahead.
 
-Further, MCTS also is very hard to get to handle in domains of continuous action spaces, whereas MineRL has a mouse. Further, it's even more unstable in mixed-action space environments with discrete AND continuous. Minecraft is both discrete (keyboard) and continuous (mouse). So we nee something better! 
+Further, MCTS also is very hard to get to handle in domains of continuous action spaces, whereas MineRL has a mouse. Further, it's even more unstable in mixed-action space environments with discrete AND continuous. Minecraft is both discrete (keyboard) and continuous (mouse). So we need something better! 
 
 ## Fractal Monte Carlo (FMC)
 Instead of MCTS/other RES algorithms, I chose to use [Fractal Monte Carlo (FMC)](https://arxiv.org/abs/1803.05049), a relatively unknown and forgotten RES algorithm.
 
 Many RES methods use a population of coordinated random-acting agents called "walkers" to explore the environment. The different methods describe how these "walkers" coordinate, and FMC is one such method.
 
-It's key distinction between many RES methods and MCTS is the usage of a contrastive orientation method. They calculate a "virtual rewards" vector which has 1 element for every walker. Each "virtual reward" value corresponds to the probability of a walker receiving reinforcements. The reinforcements come in the form of "clones", where a source walker copies and sets it's own state to some target walker's state, based on said probability.
+It's key distinction between FMC and other RES methods/MCTS is the usage of a contrastive orientation method. They calculate a "virtual rewards" vector which has 1 element for every walker. Each "virtual reward" value corresponds to the probability of a walker receiving reinforcements. The reinforcements come in the form of "clones", where a source walker copies and sets it's own state to some target walker's state, based on said probability.
 
 The virtual reward is the exploration and exploitation balancing mechanism. 2 input vectors are first determined, relativized, then multiplied across:
 1. Exploitation: The current "score" of a walker. For simpler cases like cartpole, this would be the cumulative rewards a walker has accumulated during it's trajectory.
