@@ -24,6 +24,8 @@ RES algorithms in essence are a sort of non-parametric tree search with the goal
 
 Importantly, MCTS uses a traditional value function (violating my 1st constraint) to efficiently perform it's lookahead.
 
+Further, MCTS also is very hard to get to handle in domains of continuous action spaces, whereas MineRL has a mouse. Further, it's even more unstable in mixed-action space environments with discrete AND continuous. Minecraft is both discrete (keyboard) and continuous (mouse). So we nee something better! 
+
 ## Fractal Monte Carlo (FMC)
 Instead of MCTS/other RES algorithms, I chose to use [Fractal Monte Carlo (FMC)](https://arxiv.org/abs/1803.05049), a relatively unknown and forgotten RES algorithm.
 
